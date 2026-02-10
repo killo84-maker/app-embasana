@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;0,900;1,900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         
         body { 
             font-family: 'Inter', sans-serif; 
@@ -27,23 +27,6 @@
             outline: none;
             font-weight: 700;
             font-size: 1rem;
-            transition: all 0.2s;
-        }
-        
-        .input-box:focus {
-            border-color: #22c55e;
-            background-color: white;
-            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1);
-        }
-
-        .label-text {
-            font-size: 0.65rem;
-            font-weight: 800;
-            color: #94a3b8;
-            margin-bottom: 0.4rem;
-            margin-left: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
         }
 
         .tab-bar-container {
@@ -53,9 +36,6 @@
             transform: translateX(-50%);
             width: 90%;
             max-width: 450px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-end;
             z-index: 100;
         }
 
@@ -63,7 +43,6 @@
             background: white;
             border-radius: 50px;
             height: 70px;
-            width: 100%;
             display: flex;
             justify-content: space-around;
             align-items: center;
@@ -72,115 +51,48 @@
         }
 
         .btn-plus-center {
-            width: 75px;
-            height: 75px;
+            width: 70px;
+            height: 70px;
             background: #22c55e; 
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            border: 6px solid #f1f5f9;
-            margin-bottom: 35px;
+            border: 5px solid #f1f5f9;
+            margin-bottom: 30px;
             box-shadow: 0 8px 20px rgba(34, 197, 94, 0.4);
-            cursor: pointer;
-            transition: transform 0.2s;
         }
 
-        .btn-plus-center:active { transform: scale(0.9); }
-
-        .nav-item { color: #cbd5e1; cursor: pointer; }
+        .nav-item { color: #cbd5e1; }
         .nav-item.active { color: #22c55e; } 
-
-        .btn-confirm {
-            background-color: #0f172a;
-            color: white;
-            width: 100%;
-            padding: 1.4rem;
-            border-radius: 1.5rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            font-style: italic;
-            letter-spacing: 1px;
-            margin-top: 1.5rem;
-            box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.3);
-        }
-
-        .card-main {
-            background: white;
-            border-radius: 2.5rem;
-            padding: 2.5rem 1.5rem 1.5rem 1.5rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-            position: relative;
-        }
-
-        #notification {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            padding: 1rem 2rem;
-            border-radius: 1rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
-            display: none;
-            min-width: 250px;
-            text-align: center;
-        }
-
-        .btn-scan-main {
-            width: 48px;
-            height: 48px;
-            background-color: #22c55e;
-            color: white;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px auto;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
-        }
 
         #reader {
             width: 100%;
             border-radius: 1.5rem;
             overflow: hidden;
-            margin-bottom: 1rem;
             display: none;
             border: 4px solid #22c55e;
             background: #000;
         }
 
-        /* Botón de ayuda para copiar código en móvil */
-        .copy-helper {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: #0f172a;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 10px;
-            font-size: 10px;
-            font-weight: bold;
-            z-index: 1000;
-            opacity: 0.5;
+        .card-main {
+            background: white;
+            border-radius: 2rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
         }
     </style>
 </head>
 <body>
 
-    <button class="copy-helper" onclick="copyFullCode()">COPIAR HTML</button>
-    <div id="notification"></div>
+    <div id="notification" class="fixed top-5 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-xl font-bold text-white text-xs uppercase hidden shadow-lg"></div>
     <div id="app"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, deleteDoc, onSnapshot, doc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyByMJBcH3pdeybyyDEEukdGZjB7vxmH4jA",
@@ -193,317 +105,148 @@
         const fbApp = initializeApp(firebaseConfig);
         const db = getFirestore(fbApp);
         const auth = getAuth(fbApp);
-        const currentAppId = 'embasana-stock-prod';
+        const appId = 'embasana-stock-prod';
 
         window.state = {
             view: localStorage.getItem('embasana_user') ? 'dashboard' : 'login',
             user: JSON.parse(localStorage.getItem('embasana_user')) || null,
             inventory: [],
-            authorizedUsers: [],
-            searchQuery: '',
-            searchMode: 'todo',
             isScanning: false,
             flashOn: false,
-            tempFormData: { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' }
+            tempFormData: { scanCode: '', size: '', gauge: '', material: '' }
         };
 
-        // Función para copiar el código completo desde la interfaz
-        window.copyFullCode = () => {
-            const code = document.documentElement.outerHTML;
-            const textArea = document.createElement("textarea");
-            textArea.value = code;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                window.showNotify("CÓDIGO COPIADO AL PORTAPAPELES", "success");
-            } catch (err) {
-                window.showNotify("ERROR AL COPIAR");
-            }
-            document.body.removeChild(textArea);
-        };
-
-        window.showNotify = (msg, type = 'error') => {
+        window.showNotify = (msg, isSuccess = false) => {
             const el = document.getElementById('notification');
-            if(!el) return;
             el.innerText = msg;
-            el.style.display = 'block';
-            el.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
-            el.style.color = 'white';
-            setTimeout(() => { el.style.display = 'none'; }, 3000);
-        };
-
-        // Lógica de renderizado y Firebase idéntica a la anterior...
-        window.handleSearchInput = (input) => {
-            window.state.searchQuery = input.value;
-            const listContainer = document.getElementById('inventory-list');
-            if (listContainer) {
-                listContainer.innerHTML = renderInventoryList();
-                if (window.lucide) lucide.createIcons();
-            }
-        };
-
-        const renderInventoryList = () => {
-            const query = window.state.searchQuery.toLowerCase().trim();
-            const mode = window.state.searchMode;
-            const filtered = window.state.inventory.filter(i => {
-                if (!query) return true;
-                if (mode === 'tamaño') return String(i.size).toLowerCase().includes(query);
-                if (mode === 'galga') return String(i.gauge).includes(query);
-                if (mode === 'lote') return String(i.batch).toLowerCase().includes(query);
-                return String(i.material).toLowerCase().includes(query) || 
-                       String(i.batch).toLowerCase().includes(query) || 
-                       String(i.scanCode).toLowerCase().includes(query);
-            });
-
-            if (filtered.length === 0) return '<p class="text-center text-slate-400 text-xs font-bold py-10">Sin resultados</p>';
-
-            return filtered.map(i => `
-                <div class="bg-white p-5 rounded-[2.5rem] flex justify-between items-center shadow-sm border border-slate-50 mb-3">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center font-black text-xs text-green-600">${i.location}</div>
-                        <div>
-                            <p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}x${i.gauge}</p>
-                            <p class="text-[10px] font-bold text-slate-400 italic uppercase">LOTE: ${i.batch} • ${i.weight}kg</p>
-                        </div>
-                    </div>
-                    <button onclick="deleteItem('${i.id}')" class="text-slate-200 hover:text-red-500 p-2">
-                        <i data-lucide="trash-2" class="w-5 h-5"></i>
-                    </button>
-                </div>
-            `).join('');
+            el.style.backgroundColor = isSuccess ? '#22c55e' : '#ef4444';
+            el.classList.remove('hidden');
+            setTimeout(() => el.classList.add('hidden'), 3000);
         };
 
         window.render = () => {
             const root = document.getElementById('app');
             if (window.state.view === 'login') {
-                root.innerHTML = renderLogin();
-                const loginBtn = document.getElementById('loginBtn');
-                if (loginBtn) loginBtn.onclick = window.doLogin;
+                root.innerHTML = `
+                    <div class="h-screen flex flex-col items-center justify-center p-8 bg-slate-50">
+                        <h1 class="text-3xl font-black mb-8 uppercase tracking-tighter text-slate-900">EMBASANA STOCK</h1>
+                        <div class="w-full max-w-xs space-y-4">
+                            <input id="lUser" class="input-box uppercase" placeholder="USUARIO">
+                            <input id="lPass" type="password" class="input-box" placeholder="PIN">
+                            <button onclick="doLogin()" class="w-full bg-slate-900 text-white p-4 rounded-xl font-bold uppercase">Entrar</button>
+                        </div>
+                    </div>
+                `;
             } else {
                 root.innerHTML = `
-                    <div class="max-w-md mx-auto p-6 pb-40">
-                        <header class="flex justify-between items-center mb-10">
-                            <h1 class="text-2xl font-black italic uppercase tracking-tighter text-slate-900">
-                                ${window.state.view === 'entry' ? 'REGISTRO' : 
-                                  window.state.view === 'search' ? 'BUSCAR' : 
-                                  window.state.view === 'users' ? 'USUARIOS' : 'INICIO'}
-                            </h1>
-                            <button onclick="logout()" class="text-slate-300 hover:text-slate-500 transition-colors">
-                                <i data-lucide="log-out"></i>
-                            </button>
+                    <div class="max-w-md mx-auto p-6 pb-32">
+                        <header class="flex justify-between items-center mb-8">
+                            <h2 class="text-xl font-black uppercase italic">${window.state.view}</h2>
+                            <button onclick="logout()" class="text-slate-300"><i data-lucide="log-out"></i></button>
                         </header>
-                        <div id="view-content">${renderCurrentView()}</div>
+                        <div id="content">${renderView()}</div>
                         <div class="tab-bar-container">
                             <div class="tab-bar">
-                                <div onclick="setView('dashboard')" class="nav-item ${window.state.view === 'dashboard' ? 'active' : ''}">
-                                    <i data-lucide="layout-grid" stroke-width="2.5"></i>
-                                </div>
-                                <div onclick="setView('entry')" class="btn-plus-center">
-                                    <i data-lucide="plus" size="32" stroke-width="3"></i>
-                                </div>
-                                <div onclick="setView('search')" class="nav-item ${window.state.view === 'search' ? 'active' : ''}">
-                                    <i data-lucide="search" stroke-width="2.5"></i>
-                                </div>
+                                <button onclick="setView('dashboard')" class="nav-item ${window.state.view==='dashboard'?'active':''}"><i data-lucide="layout-grid"></i></button>
+                                <button onclick="setView('entry')" class="btn-plus-center"><i data-lucide="plus" size="30"></i></button>
+                                <button onclick="setView('search')" class="nav-item ${window.state.view==='search'?'active':''}"><i data-lucide="search"></i></button>
                             </div>
                         </div>
                     </div>
                 `;
             }
-            if (window.lucide) lucide.createIcons();
+            lucide.createIcons();
         };
 
-        const renderLogin = () => `
-            <div class="h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-                <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" style="width:100px; border-radius:1.5rem; margin-bottom:1.5rem;" alt="Logo">
-                <h1 class="text-slate-800 text-3xl font-black uppercase mb-2 tracking-tighter">STOCK CONTROL</h1>
-                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Acceso Embasana</p>
-                <div class="w-full max-w-xs space-y-3">
-                    <input id="lUser" class="input-box uppercase" placeholder="USUARIO">
-                    <input id="lPass" type="password" class="input-box" placeholder="PIN">
-                    <button id="loginBtn" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase">Entrar</button>
-                </div>
-            </div>
-        `;
-
-        const renderCurrentView = () => {
+        const renderView = () => {
             if (window.state.view === 'dashboard') {
-                const totalKg = window.state.inventory.reduce((a, b) => a + Number(b.weight || 0), 0);
+                return `<div class="card-main">
+                    <p class="text-xs font-bold text-slate-400 uppercase mb-2">Total Bobinas</p>
+                    <p class="text-5xl font-black">${window.state.inventory.length}</p>
+                </div>`;
+            }
+            if (window.state.view === 'entry') {
                 return `
                     <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm">
-                                <p class="text-4xl font-black text-slate-900">${window.state.inventory.length}</p>
-                                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">Bobinas</p>
-                            </div>
-                            <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white">
-                                <p class="text-2xl font-black text-green-400">${totalKg.toLocaleString()} <span class="text-xs">kg</span></p>
-                                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">Stock Total</p>
-                            </div>
-                        </div>
-                        <div class="card-main">
-                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4">Movimientos</h3>
-                            <div class="space-y-4">
-                                ${window.state.inventory.slice(0, 5).map(item => `
-                                    <div class="flex justify-between items-center border-b border-slate-50 pb-3">
-                                        <div><p class="text-xs font-black uppercase">${item.material} ${item.size}x${item.gauge}</p><p class="text-[9px] font-bold text-slate-400 uppercase">Lote: ${item.batch}</p></div>
-                                        <div class="text-right"><p class="text-xs font-black">${item.weight}kg</p><p class="text-[9px] font-bold text-green-500 uppercase">CALLE ${item.location}</p></div>
-                                    </div>
-                                `).join('') || '<p class="text-center text-slate-400 text-xs py-4">Sin datos</p>'}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (window.state.view === 'entry') {
-                const d = window.state.tempFormData;
-                return `
-                    <div class="card-main">
                         <div id="reader"></div>
-                        <div class="flex justify-center gap-4 mb-4">
-                            <div onclick="startScanner()" class="btn-scan-main m-0">
-                                <i data-lucide="${window.state.isScanning ? 'square' : 'scan'}"></i>
-                            </div>
-                            ${window.state.isScanning ? `
-                                <div onclick="toggleFlash()" class="btn-scan-main !bg-amber-500 m-0">
-                                    <i data-lucide="${window.state.flashOn ? 'zap-off' : 'zap'}"></i>
-                                </div>
-                            ` : ''}
+                        <div class="flex justify-center gap-4">
+                            <button onclick="startScan()" class="bg-green-500 text-white p-4 rounded-full shadow-lg"><i data-lucide="scan"></i></button>
+                            ${window.state.isScanning ? `<button onclick="toggleFlash()" class="bg-amber-500 text-white p-4 rounded-full"><i data-lucide="zap"></i></button>` : ''}
                         </div>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-4">
-                            <div class="col-span-2"><p class="label-text">Código</p><input id="fScanCode" class="input-box uppercase" value="${d.scanCode || ''}" oninput="handleManualCode(this.value)"></div>
-                            <div><p class="label-text">Tamaño</p><input id="fSize" class="input-box uppercase" value="${d.size || ''}"></div>
-                            <div><p class="label-text">Galga</p><input id="fGauge" type="number" class="input-box" value="${d.gauge || ''}"></div>
-                            <div><p class="label-text">Material</p><input id="fMat" class="input-box uppercase" value="${d.material || ''}"></div>
-                            <div><p class="label-text">Lote</p><input id="fBatch" class="input-box uppercase"></div>
-                            <div><p class="label-text">Peso kg</p><input id="fWeight" type="number" class="input-box"></div>
-                            <div><p class="label-text">Calle</p><input id="fLoc" class="input-box uppercase"></div>
+                        <input id="fCode" class="input-box uppercase" placeholder="CÓDIGO" value="${window.state.tempFormData.scanCode}">
+                        <div class="grid grid-cols-2 gap-4">
+                            <input id="fSize" class="input-box uppercase" placeholder="TAMAÑO" value="${window.state.tempFormData.size}">
+                            <input id="fGauge" class="input-box" placeholder="GALGA" value="${window.state.tempFormData.gauge}">
                         </div>
-                        <button onclick="saveEntry()" class="btn-confirm">Guardar</button>
+                        <input id="fBatch" class="input-box uppercase" placeholder="LOTE">
+                        <input id="fWeight" type="number" class="input-box" placeholder="PESO KG">
+                        <input id="fLoc" class="input-box uppercase" placeholder="CALLE">
+                        <button onclick="saveData()" class="w-full bg-slate-900 text-white p-4 rounded-xl font-bold uppercase">Guardar Registro</button>
                     </div>
                 `;
             }
-
-            if (window.state.view === 'search') {
-                return `
-                    <div class="space-y-6">
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
-                            <input id="searchInput" oninput="handleSearchInput(this)" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white" placeholder="Buscar...">
-                        </div>
-                        <div id="inventory-list" class="mt-6">${renderInventoryList()}</div>
-                    </div>
-                `;
-            }
+            return `<div class="space-y-4">
+                <input oninput="search(this.value)" class="input-box" placeholder="Buscar por lote o código...">
+                <div id="list" class="space-y-3"></div>
+            </div>`;
         };
 
-        // Lógica de Scanner mejorada (Flash y FPS altos)
+        window.doLogin = () => {
+            const u = document.getElementById('lUser').value.toLowerCase();
+            const p = document.getElementById('lPass').value;
+            if(u === 'admin' && p === 'master2024') {
+                window.state.user = { name: 'Admin' };
+                localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
+                window.state.view = 'dashboard';
+                render();
+            } else { showNotify("Credenciales incorrectas"); }
+        };
+
+        window.logout = () => { localStorage.removeItem('embasana_user'); window.state.view = 'login'; render(); };
+        window.setView = (v) => { window.state.view = v; render(); };
+
         let html5QrCode;
-        window.startScanner = () => {
-            const readerEl = document.getElementById('reader');
-            if (window.state.isScanning) { stopScanner(); return; }
+        window.startScan = () => {
+            const r = document.getElementById('reader');
+            r.style.display = 'block';
             window.state.isScanning = true;
-            readerEl.style.display = 'block';
             render();
             html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 300, height: 150 } }, (decodedText) => {
-                handleSearchAndFill(decodedText.trim().toUpperCase());
-                stopScanner();
-            }, (err) => {}).catch(() => {
-                window.showNotify("ERROR CÁMARA");
-                readerEl.style.display = 'none';
+            html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: {width: 250, height: 150} }, (text) => {
+                const found = window.state.inventory.find(i => i.scanCode === text);
+                window.state.tempFormData = { scanCode: text, size: found?.size||'', gauge: found?.gauge||'', material: found?.material||'' };
+                stopScan();
+            }, () => {});
+        };
+
+        const stopScan = () => {
+            if(html5QrCode) html5QrCode.stop().then(() => {
+                document.getElementById('reader').style.display='none';
                 window.state.isScanning = false;
                 render();
             });
         };
 
-        window.toggleFlash = async () => {
-            if (html5QrCode && html5QrCode.isScanning) {
-                const videoTrack = html5QrCode.getRunningTrack();
-                if (videoTrack) {
-                    const capabilities = videoTrack.getCapabilities();
-                    if (capabilities.torch) {
-                        window.state.flashOn = !window.state.flashOn;
-                        await videoTrack.applyConstraints({ advanced: [{ torch: window.state.flashOn }] });
-                        render();
-                    }
-                }
-            }
-        };
-
-        function stopScanner() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('reader').style.display = 'none';
-                    window.state.isScanning = false;
-                    window.state.flashOn = false;
-                    render();
-                });
-            }
-        }
-
-        window.handleManualCode = (val) => {
-            const code = val.trim().toUpperCase();
-            handleSearchAndFill(code, false);
-        };
-
-        function handleSearchAndFill(code, shouldRender = true) {
-            const existing = window.state.inventory.find(i => i.scanCode === code);
-            window.state.tempFormData = {
-                scanCode: code,
-                size: existing ? existing.size : '',
-                gauge: existing ? existing.gauge : '',
-                material: existing ? existing.material : '',
-                finish: existing ? existing.finish : '',
-                color: existing ? existing.color : ''
-            };
-            if (existing) window.showNotify("DATOS RECUPERADOS", "success");
-            if (shouldRender) render();
-        }
-
-        window.doLogin = () => {
-            const u = document.getElementById('lUser').value.trim().toLowerCase();
-            const p = document.getElementById('lPass').value;
-            if (u === 'admin' && p === 'master2024') {
-                window.state.user = { name: 'ADMIN', role: 'admin' };
-                localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
-                window.state.view = 'dashboard';
-                render();
-            } else { window.showNotify("SIN ACCESO"); }
-        };
-
-        window.saveEntry = async () => {
-            const data = {
-                scanCode: document.getElementById('fScanCode').value.toUpperCase(),
+        window.saveData = async () => {
+            const payload = {
+                scanCode: document.getElementById('fCode').value.toUpperCase(),
                 size: document.getElementById('fSize').value.toUpperCase(),
                 gauge: document.getElementById('fGauge').value,
-                material: document.getElementById('fMat').value.toUpperCase(),
                 batch: document.getElementById('fBatch').value.toUpperCase(),
                 weight: document.getElementById('fWeight').value,
                 location: document.getElementById('fLoc').value.toUpperCase(),
                 createdAt: Date.now()
             };
-            if(!data.batch || !data.location) return window.showNotify("DATOS INCOMPLETOS");
-            await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), data);
-            window.showNotify("GUARDADO", "success");
+            if(!payload.batch || !payload.location) return showNotify("Faltan datos");
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), payload);
+            showNotify("Guardado con éxito", true);
             window.state.view = 'dashboard';
             render();
         };
 
-        window.deleteItem = async (id) => {
-            if(confirm("¿ELIMINAR?")) {
-                await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'inventory', id));
-                render();
-            }
-        };
-
-        window.setView = (v) => { window.state.view = v; render(); };
-        window.logout = () => { localStorage.removeItem('embasana_user'); window.state.view = 'login'; render(); };
-
         window.onload = async () => {
             await signInAnonymously(auth);
-            onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), (snap) => {
                 window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
                 render();
             });
