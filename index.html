@@ -1,0 +1,445 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  doc, 
+  query 
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  LayoutGrid, 
+  Plus, 
+  Search, 
+  LogOut, 
+  ShieldCheck, 
+  Trash2, 
+  Scan,
+  UserPlus,
+  Loader2
+} from 'lucide-react';
+
+// --- CONFIGURACIÓN Y SERVICIOS ---
+// Nota: __firebase_config y __app_id son suministrados por el entorno de ejecución
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'embasana-stock-prod';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState('login');
+  const [inventory, setInventory] = useState([]);
+  const [authorizedUsers, setAuthorizedUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState('todo');
+  const [notification, setNotification] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // --- AUTENTICACIÓN Y PERSISTENCIA (REGLA 3: Auth antes que nada) ---
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Error de autenticación:", err);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const savedSession = localStorage.getItem('embasana_session_v2');
+        if (savedSession) {
+          setUser(JSON.parse(savedSession));
+          setView('dashboard');
+        }
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // --- ESCUCHA DE DATOS (REGLA 1 y 2: Rutas estrictas y sin queries complejas) ---
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    // Sincronizar Inventario
+    const qInv = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
+    const unsubInv = onSnapshot(qInv, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Ordenamos en memoria (Regla 2)
+      setInventory(data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+    }, (err) => {
+      console.error("Error leyendo inventario:", err);
+      showNotify("Error de conexión con la base de datos");
+    });
+
+    // Sincronizar Personal Autorizado
+    const qUsers = collection(db, 'artifacts', appId, 'public', 'data', 'authorized_users');
+    const unsubUsers = onSnapshot(qUsers, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAuthorizedUsers(data.sort((a, b) => (a.name || "").localeCompare(b.name || "")));
+    }, (err) => console.error("Error leyendo usuarios:", err));
+
+    return () => {
+      unsubInv();
+      unsubUsers();
+    };
+  }, [auth.currentUser]);
+
+  const showNotify = (text, type = 'error') => {
+    setNotification({ text, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const uName = e.target.username.value.trim().toLowerCase();
+    const pin = e.target.pin.value;
+
+    if (uName === 'admin' && pin === 'master2024') {
+      const adminData = { name: 'ADMIN', role: 'admin', uid: auth.currentUser.uid };
+      setUser(adminData);
+      localStorage.setItem('embasana_session_v2', JSON.stringify(adminData));
+      setView('dashboard');
+    } else {
+      const found = authorizedUsers.find(u => u.name.toLowerCase() === uName);
+      if (found && pin === '1234') {
+        const opData = { name: found.name, role: 'operario', uid: auth.currentUser.uid };
+        setUser(opData);
+        localStorage.setItem('embasana_session_v2', JSON.stringify(opData));
+        setView('dashboard');
+      } else {
+        showNotify("ACCESO DENEGADO");
+      }
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('embasana_session_v2');
+    setUser(null);
+    setView('login');
+  };
+
+  const saveEntry = async (e) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    const form = e.target;
+    
+    const data = {
+      size: form.size.value.toUpperCase(),
+      material: form.material.value.toUpperCase(),
+      location: form.location.value.toUpperCase(),
+      weight: parseFloat(form.weight.value) || 0,
+      batch: form.batch.value.toUpperCase(),
+      gauge: form.gauge.value,
+      color: form.color.value.toUpperCase(),
+      finish: form.finish.value.toUpperCase(),
+      scanCode: form.scanCode.value.toUpperCase(),
+      createdAt: Date.now(),
+      createdBy: user.name
+    };
+
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), data);
+      showNotify("REGISTRO GUARDADO", "success");
+      setView('dashboard');
+    } catch (err) {
+      showNotify("ERROR AL GUARDAR");
+    }
+  };
+
+  const deleteItem = async (id) => {
+    if (!auth.currentUser) return;
+    if (window.confirm("¿ELIMINAR ESTA BOBINA?")) {
+      try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
+      } catch (err) {
+        showNotify("No se pudo eliminar el registro");
+      }
+    }
+  };
+
+  const addNewUser = async (e) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    const nameInput = e.target.userName.value.trim();
+    if (!nameInput) return;
+    const name = nameInput.toUpperCase();
+    
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'authorized_users'), { 
+        name, 
+        createdAt: Date.now() 
+      });
+      e.target.reset();
+      showNotify("TRABAJADOR AÑADIDO", "success");
+    } catch (err) { 
+      showNotify("ERROR EN EL REGISTRO");
+    }
+  };
+
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-green-600" size={40} /></div>;
+
+  if (view === 'login') {
+    return (
+      <div className="h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
+        {notification && (
+          <div className={`fixed top-5 px-6 py-3 rounded-xl text-white font-bold text-xs uppercase shadow-lg z-[60] ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+            {notification.text}
+          </div>
+        )}
+        
+        <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl mb-8 border-4 border-white overflow-hidden">
+            <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" className="w-full h-full object-cover" alt="Logo Embasana" />
+        </div>
+
+        <h1 className="text-slate-800 text-3xl font-black uppercase mb-2 tracking-tighter italic">STOCK CONTROL</h1>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Acceso Restringido</p>
+        
+        <form onSubmit={handleLogin} className="w-full max-w-xs space-y-3">
+          <input name="username" required className="w-full bg-white border border-slate-200 p-4 rounded-2xl outline-none font-bold text-center focus:border-green-500 transition-all uppercase placeholder:normal-case" placeholder="Nombre de Usuario" />
+          <input name="pin" type="password" required className="w-full bg-white border border-slate-200 p-4 rounded-2xl outline-none font-bold text-center focus:border-green-500 transition-all placeholder:normal-case" placeholder="PIN de Acceso" />
+          <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-xl active:scale-95 transition-all">Entrar al Sistema</button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-32">
+      {notification && (
+        <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-xl text-white font-bold text-xs uppercase shadow-lg ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {notification.text}
+        </div>
+      )}
+
+      <div className="max-w-md mx-auto p-6">
+        <header className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-2xl font-black italic uppercase tracking-tighter leading-tight">
+              {view === 'dashboard' ? 'PANEL INICIO' : view === 'entry' ? 'REGISTRO' : view === 'search' ? 'BÚSQUEDA' : 'MAESTRO'}
+            </h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hola, {user?.name}</p>
+          </div>
+          <button onClick={logout} className="bg-white p-3 rounded-xl text-slate-300 hover:text-red-500 shadow-sm transition-colors">
+            <LogOut size={20} />
+          </button>
+        </header>
+
+        {view === 'dashboard' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                <p className="text-4xl font-black">{inventory.length}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Bobinas</p>
+              </div>
+              <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl shadow-slate-300">
+                <p className="text-2xl font-black text-green-400">
+                  {inventory.reduce((a, b) => a + (Number(b.weight) || 0), 0).toLocaleString()} <span className="text-xs">kg</span>
+                </p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Stock Total</p>
+              </div>
+            </div>
+
+            {user?.role === 'admin' && (
+              <div onClick={() => setView('users')} className="bg-indigo-600 p-6 rounded-[2.5rem] text-white flex justify-between items-center cursor-pointer shadow-lg active:scale-95 transition-transform">
+                <div>
+                  <p className="text-lg font-black italic uppercase tracking-tighter">Personal Autorizado</p>
+                  <p className="text-[9px] font-bold opacity-70 uppercase tracking-widest">Añadir o quitar personal</p>
+                </div>
+                <ShieldCheck size={32} className="opacity-50" />
+              </div>
+            )}
+
+            <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Movimientos Recientes</h3>
+              <div className="space-y-4">
+                {inventory.slice(0, 5).map(item => (
+                  <div key={item.id} className="flex justify-between items-center border-b border-slate-50 pb-3 last:border-0">
+                    <div>
+                      <p className="text-xs font-black uppercase text-slate-700">{item.material} {item.size}x{item.gauge}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase italic">Lote: {item.batch}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-black">{item.weight}kg</p>
+                      <p className="text-[9px] font-bold text-green-600 uppercase tracking-tighter">CALLE {item.location}</p>
+                    </div>
+                  </div>
+                ))}
+                {inventory.length === 0 && <p className="text-center text-[10px] text-slate-300 font-bold uppercase py-4">No hay datos</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === 'entry' && (
+          <form onSubmit={saveEntry} className="bg-white rounded-[2.5rem] p-6 shadow-sm space-y-6">
+            <div className="flex flex-col items-center mb-4">
+              <div className="w-12 h-12 bg-green-500 text-white rounded-xl flex items-center justify-center mb-2 shadow-lg shadow-green-100">
+                <Scan />
+              </div>
+              <input name="scanCode" className="w-full bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-xl font-bold text-center uppercase focus:border-green-500 outline-none" placeholder="Escanear Código" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Tamaño (mm)</label>
+                <input name="size" required className="w-full bg-slate-50 p-3 rounded-xl font-bold uppercase outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Galga (μm)</label>
+                <input name="gauge" type="number" required className="w-full bg-slate-50 p-3 rounded-xl font-bold outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Material</label>
+                <input name="material" required className="w-full bg-slate-50 p-3 rounded-xl font-bold uppercase outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Acabado</label>
+                <input name="finish" className="w-full bg-slate-50 p-3 rounded-xl font-bold uppercase outline-none" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Número de Lote</label>
+                <input name="batch" required className="w-full bg-slate-50 p-3 rounded-xl font-bold uppercase outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Peso Neto (kg)</label>
+                <input name="weight" type="number" step="0.01" required className="w-full bg-slate-50 p-3 rounded-xl font-bold outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Calle/Ubicación</label>
+                <input name="location" required className="w-full bg-slate-50 p-3 rounded-xl font-bold uppercase outline-none text-green-600" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 ml-2 uppercase">Observaciones/Color</label>
+                <input name="color" className="w-full bg-slate-50 p-3 rounded-xl font-bold uppercase outline-none" />
+              </div>
+            </div>
+            <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-xl active:scale-95 transition-all mt-4">Confirmar Entrada</button>
+          </form>
+        )}
+
+        {view === 'search' && (
+          <div className="space-y-6">
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              {['todo', 'tamaño', 'galga', 'lote'].map(m => (
+                <button 
+                  key={m}
+                  onClick={() => setSearchMode(m)}
+                  className={`px-6 py-3 rounded-xl font-bold text-[10px] uppercase transition-all whitespace-nowrap shadow-sm border ${searchMode === m ? 'bg-green-500 text-white border-green-500' : 'bg-white text-slate-400 border-slate-100'}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+              <input 
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white p-4 pl-12 rounded-2xl shadow-sm border border-slate-100 font-bold outline-none focus:border-green-500 transition-all uppercase placeholder:normal-case" 
+                placeholder="Buscar por lote, material..." 
+              />
+            </div>
+
+            <div className="space-y-3">
+              {inventory
+                .filter(i => {
+                  const q = searchQuery.toLowerCase();
+                  if (searchMode === 'tamaño') return (i.size || "").toLowerCase().includes(q);
+                  if (searchMode === 'galga') return (i.gauge || "").toString().includes(q);
+                  if (searchMode === 'lote') return (i.batch || "").toLowerCase().includes(q);
+                  return (i.batch || "").toLowerCase().includes(q) || (i.material || "").toLowerCase().includes(q) || (i.location || "").toLowerCase().includes(q);
+                })
+                .map(i => (
+                  <div key={i.id} className="bg-white p-5 rounded-[2rem] flex justify-between items-center shadow-sm border border-slate-50 active:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center font-black text-xs text-green-600 border border-slate-100">{i.location}</div>
+                      <div>
+                        <p className="font-black text-slate-800 text-xs uppercase">{i.material} {i.size}x{i.gauge}</p>
+                        <p className="text-[10px] font-bold text-slate-400 italic uppercase">LOTE: {i.batch} • {i.weight}kg</p>
+                      </div>
+                    </div>
+                    <button onClick={() => deleteItem(i.id)} className="text-slate-200 hover:text-red-500 transition-colors p-2">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {view === 'users' && (
+          <div className="space-y-6">
+            <form onSubmit={addNewUser} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest text-center">Registrar Nuevo Trabajador</h3>
+              <div className="flex gap-2">
+                <input name="userName" className="flex-1 bg-slate-50 p-4 rounded-2xl outline-none font-bold uppercase focus:bg-white border border-transparent focus:border-slate-100" placeholder="NOMBRE" />
+                <button type="submit" className="bg-indigo-600 text-white p-4 rounded-2xl shadow-lg shadow-indigo-100 active:scale-90 transition-transform">
+                  <UserPlus />
+                </button>
+              </div>
+            </form>
+
+            <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest text-center">Personal con Acceso</h3>
+              <div className="space-y-3">
+                {authorizedUsers.length === 0 ? (
+                  <p className="text-center text-slate-300 text-[10px] py-6 uppercase font-bold italic tracking-widest">No hay trabajadores registrados</p>
+                ) : (
+                  authorizedUsers.map(u => (
+                    <div key={u.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <span className="font-black text-xs uppercase text-slate-700 tracking-tight">{u.name}</span>
+                      <button onClick={async () => {
+                        if(window.confirm(`¿QUITAR ACCESO A ${u.name}?`)) {
+                           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authorized_users', u.id));
+                        }
+                      }} className="text-slate-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <button onClick={() => setView('dashboard')} className="w-full text-slate-400 font-bold uppercase text-[10px] tracking-widest py-4">Volver al inicio</button>
+          </div>
+        )}
+      </div>
+
+      {/* BARRA DE NAVEGACIÓN INFERIOR */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-[400px] z-50">
+        <div className="bg-white h-20 rounded-full shadow-2xl shadow-slate-200 border border-slate-100 flex justify-around items-center px-6 relative">
+          <button onClick={() => setView('dashboard')} className={`transition-all ${view === 'dashboard' ? 'text-indigo-600 scale-110' : 'text-slate-300'}`}>
+            <LayoutGrid size={26} strokeWidth={2.5} />
+          </button>
+          
+          <div className="relative -top-10">
+            <button onClick={() => setView('entry')} className="bg-green-500 w-16 h-16 rounded-full flex items-center justify-center text-white shadow-xl shadow-green-200 border-[6px] border-slate-50 active:scale-90 transition-transform">
+              <Plus size={34} strokeWidth={3} />
+            </button>
+          </div>
+
+          <button onClick={() => setView('search')} className={`transition-all ${view === 'search' ? 'text-indigo-600 scale-110' : 'text-slate-300'}`}>
+            <Search size={26} strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
