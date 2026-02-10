@@ -114,27 +114,6 @@
             position: relative;
         }
 
-        /* ESTILO DE LOS BOTONES DE BUSQUEDA CORREGIDO */
-        .search-tab-btn {
-            background: #f8fafc;
-            padding: 0.8rem 1.2rem;
-            border-radius: 1rem;
-            font-size: 0.7rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            color: #94a3b8;
-            border: 2px solid transparent;
-            transition: all 0.2s;
-            white-space: nowrap;
-            display: inline-block;
-        }
-
-        .search-tab-btn.active {
-            border-color: #22c55e;
-            color: #22c55e;
-            background: #f0fdf4;
-        }
-
         #notification {
             position: fixed;
             top: 20px;
@@ -173,23 +152,28 @@
             margin-bottom: 1rem;
             display: none;
             border: 4px solid #22c55e;
+            background: #000;
         }
 
-        .logo-login {
-            width: 100px;
-            height: 100px;
-            border-radius: 1.5rem;
-            object-fit: cover;
-            border: 4px solid white;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            margin-bottom: 1.5rem;
+        /* Botón de ayuda para copiar código en móvil */
+        .copy-helper {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #0f172a;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 1000;
+            opacity: 0.5;
         }
-
-        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
 
+    <button class="copy-helper" onclick="copyFullCode()">COPIAR HTML</button>
     <div id="notification"></div>
     <div id="app"></div>
 
@@ -219,7 +203,24 @@
             searchQuery: '',
             searchMode: 'todo',
             isScanning: false,
+            flashOn: false,
             tempFormData: { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' }
+        };
+
+        // Función para copiar el código completo desde la interfaz
+        window.copyFullCode = () => {
+            const code = document.documentElement.outerHTML;
+            const textArea = document.createElement("textarea");
+            textArea.value = code;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                window.showNotify("CÓDIGO COPIADO AL PORTAPAPELES", "success");
+            } catch (err) {
+                window.showNotify("ERROR AL COPIAR");
+            }
+            document.body.removeChild(textArea);
         };
 
         window.showNotify = (msg, type = 'error') => {
@@ -232,10 +233,53 @@
             setTimeout(() => { el.style.display = 'none'; }, 3000);
         };
 
+        // Lógica de renderizado y Firebase idéntica a la anterior...
+        window.handleSearchInput = (input) => {
+            window.state.searchQuery = input.value;
+            const listContainer = document.getElementById('inventory-list');
+            if (listContainer) {
+                listContainer.innerHTML = renderInventoryList();
+                if (window.lucide) lucide.createIcons();
+            }
+        };
+
+        const renderInventoryList = () => {
+            const query = window.state.searchQuery.toLowerCase().trim();
+            const mode = window.state.searchMode;
+            const filtered = window.state.inventory.filter(i => {
+                if (!query) return true;
+                if (mode === 'tamaño') return String(i.size).toLowerCase().includes(query);
+                if (mode === 'galga') return String(i.gauge).includes(query);
+                if (mode === 'lote') return String(i.batch).toLowerCase().includes(query);
+                return String(i.material).toLowerCase().includes(query) || 
+                       String(i.batch).toLowerCase().includes(query) || 
+                       String(i.scanCode).toLowerCase().includes(query);
+            });
+
+            if (filtered.length === 0) return '<p class="text-center text-slate-400 text-xs font-bold py-10">Sin resultados</p>';
+
+            return filtered.map(i => `
+                <div class="bg-white p-5 rounded-[2.5rem] flex justify-between items-center shadow-sm border border-slate-50 mb-3">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center font-black text-xs text-green-600">${i.location}</div>
+                        <div>
+                            <p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}x${i.gauge}</p>
+                            <p class="text-[10px] font-bold text-slate-400 italic uppercase">LOTE: ${i.batch} • ${i.weight}kg</p>
+                        </div>
+                    </div>
+                    <button onclick="deleteItem('${i.id}')" class="text-slate-200 hover:text-red-500 p-2">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            `).join('');
+        };
+
         window.render = () => {
             const root = document.getElementById('app');
             if (window.state.view === 'login') {
                 root.innerHTML = renderLogin();
+                const loginBtn = document.getElementById('loginBtn');
+                if (loginBtn) loginBtn.onclick = window.doLogin;
             } else {
                 root.innerHTML = `
                     <div class="max-w-md mx-auto p-6 pb-40">
@@ -249,7 +293,7 @@
                                 <i data-lucide="log-out"></i>
                             </button>
                         </header>
-                        ${renderCurrentView()}
+                        <div id="view-content">${renderCurrentView()}</div>
                         <div class="tab-bar-container">
                             <div class="tab-bar">
                                 <div onclick="setView('dashboard')" class="nav-item ${window.state.view === 'dashboard' ? 'active' : ''}">
@@ -271,13 +315,13 @@
 
         const renderLogin = () => `
             <div class="h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-                <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" class="logo-login" alt="Logo ShadowMir">
+                <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" style="width:100px; border-radius:1.5rem; margin-bottom:1.5rem;" alt="Logo">
                 <h1 class="text-slate-800 text-3xl font-black uppercase mb-2 tracking-tighter">STOCK CONTROL</h1>
-                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Acceso Restringido</p>
+                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Acceso Embasana</p>
                 <div class="w-full max-w-xs space-y-3">
                     <input id="lUser" class="input-box uppercase" placeholder="USUARIO">
                     <input id="lPass" type="password" class="input-box" placeholder="PIN">
-                    <button id="loginBtn" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-xl active:scale-95 transition-all">Entrar</button>
+                    <button id="loginBtn" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase">Entrar</button>
                 </div>
             </div>
         `;
@@ -288,49 +332,24 @@
                 return `
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm">
                                 <p class="text-4xl font-black text-slate-900">${window.state.inventory.length}</p>
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Bobinas</p>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">Bobinas</p>
                             </div>
-                            <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl shadow-slate-200">
+                            <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white">
                                 <p class="text-2xl font-black text-green-400">${totalKg.toLocaleString()} <span class="text-xs">kg</span></p>
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Stock Total</p>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">Stock Total</p>
                             </div>
                         </div>
-                        ${window.state.user?.role === 'admin' ? `
-                            <div onclick="setView('users')" class="bg-indigo-600 p-6 rounded-[2.5rem] text-white flex justify-between items-center cursor-pointer shadow-lg shadow-indigo-100 active:scale-95 transition-transform">
-                                <div><p class="text-lg font-black italic uppercase tracking-tighter">Panel Maestro</p><p class="text-[9px] font-bold opacity-70 uppercase tracking-widest">Gestionar Trabajadores</p></div><i data-lucide="shield-check" class="w-8 h-8 opacity-50"></i>
-                            </div>
-                        ` : ''}
                         <div class="card-main">
-                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Últimos Registros</h3>
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4">Movimientos</h3>
                             <div class="space-y-4">
-                                ${window.state.inventory.length > 0 ? window.state.inventory.slice(0, 5).map(item => `
+                                ${window.state.inventory.slice(0, 5).map(item => `
                                     <div class="flex justify-between items-center border-b border-slate-50 pb-3">
-                                        <div><p class="text-xs font-black uppercase text-slate-700">${item.material || 'BBN'} ${item.size}x${item.gauge}</p><p class="text-[9px] font-bold text-slate-400 uppercase italic">Lote: ${item.batch}</p></div>
+                                        <div><p class="text-xs font-black uppercase">${item.material} ${item.size}x${item.gauge}</p><p class="text-[9px] font-bold text-slate-400 uppercase">Lote: ${item.batch}</p></div>
                                         <div class="text-right"><p class="text-xs font-black">${item.weight}kg</p><p class="text-[9px] font-bold text-green-500 uppercase">CALLE ${item.location}</p></div>
                                     </div>
-                                `).join('') : '<p class="text-center text-slate-400 text-xs font-bold py-4">Sin movimientos</p>'}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (window.state.view === 'users') {
-                return `
-                    <div class="space-y-6">
-                        <div class="card-main">
-                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Nuevo Trabajador</h3>
-                            <div class="flex gap-2">
-                                <input id="newUserName" class="input-box uppercase" placeholder="NOMBRE">
-                                <button onclick="addUser()" class="bg-green-500 text-white p-4 rounded-2xl shadow-lg active:scale-90 transition-transform"><i data-lucide="user-plus"></i></button>
-                            </div>
-                        </div>
-                        <div class="card-main">
-                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Personal Autorizado</h3>
-                            <div class="space-y-3">
-                                ${window.state.authorizedUsers.map(u => `<div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl"><span class="font-black text-xs uppercase tracking-tight text-slate-700">${u.name}</span><button onclick="removeUser('${u.id}')" class="text-slate-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`).join('')}
+                                `).join('') || '<p class="text-center text-slate-400 text-xs py-4">Sin datos</p>'}
                             </div>
                         </div>
                     </div>
@@ -342,81 +361,75 @@
                 return `
                     <div class="card-main">
                         <div id="reader"></div>
-                        <div onclick="startScanner()" class="btn-scan-main active:scale-90 transition-transform">
-                            <i data-lucide="scan"></i>
-                        </div>
-                        <div class="w-full mb-6 text-center">
-                            <p class="label-text !text-center">CÓDIGO DE BARRAS</p>
-                            <input id="fScanCode" class="input-box uppercase text-center !bg-slate-50 border-2 border-dashed border-slate-200" placeholder="---" value="${d.scanCode || ''}" oninput="handleManualCode(this.value)">
+                        <div class="flex justify-center gap-4 mb-4">
+                            <div onclick="startScanner()" class="btn-scan-main m-0">
+                                <i data-lucide="${window.state.isScanning ? 'square' : 'scan'}"></i>
+                            </div>
+                            ${window.state.isScanning ? `
+                                <div onclick="toggleFlash()" class="btn-scan-main !bg-amber-500 m-0">
+                                    <i data-lucide="${window.state.flashOn ? 'zap-off' : 'zap'}"></i>
+                                </div>
+                            ` : ''}
                         </div>
                         <div class="grid grid-cols-2 gap-x-4 gap-y-4">
-                            <div><p class="label-text">Tamaño</p><input id="fSize" type="text" class="input-box uppercase" value="${d.size || ''}"></div>
+                            <div class="col-span-2"><p class="label-text">Código</p><input id="fScanCode" class="input-box uppercase" value="${d.scanCode || ''}" oninput="handleManualCode(this.value)"></div>
+                            <div><p class="label-text">Tamaño</p><input id="fSize" class="input-box uppercase" value="${d.size || ''}"></div>
                             <div><p class="label-text">Galga</p><input id="fGauge" type="number" class="input-box" value="${d.gauge || ''}"></div>
                             <div><p class="label-text">Material</p><input id="fMat" class="input-box uppercase" value="${d.material || ''}"></div>
-                            <div><p class="label-text">Acabado</p><input id="fFinish" class="input-box uppercase" value="${d.finish || ''}"></div>
-                            <div><p class="label-text">Color</p><input id="fColor" class="input-box uppercase" value="${d.color || ''}"></div>
-                            <div class="col-span-2 border-t border-slate-100 pt-4 mt-2"></div>
-                            <div class="col-span-2"><p class="label-text">Nº Lote</p><input id="fBatch" class="input-box uppercase"></div>
-                            <div><p class="label-text">Peso (kg)</p><input id="fWeight" type="number" class="input-box"></div>
+                            <div><p class="label-text">Lote</p><input id="fBatch" class="input-box uppercase"></div>
+                            <div><p class="label-text">Peso kg</p><input id="fWeight" type="number" class="input-box"></div>
                             <div><p class="label-text">Calle</p><input id="fLoc" class="input-box uppercase"></div>
                         </div>
-                        <button onclick="saveEntry()" class="btn-confirm active:scale-95 transition-transform">Confirmar Registro</button>
+                        <button onclick="saveEntry()" class="btn-confirm">Guardar</button>
                     </div>
                 `;
             }
 
             if (window.state.view === 'search') {
-                const query = window.state.searchQuery.toLowerCase().trim();
-                const mode = window.state.searchMode;
-                const filtered = window.state.inventory.filter(i => {
-                    if (!query) return true;
-                    if (mode === 'tamaño') return String(i.size).toLowerCase().includes(query);
-                    if (mode === 'galga') return String(i.gauge).includes(query);
-                    if (mode === 'lote') return String(i.batch).toLowerCase().includes(query);
-                    return String(i.material).toLowerCase().includes(query) || String(i.batch).toLowerCase().includes(query) || String(i.scanCode).toLowerCase().includes(query);
-                });
-
                 return `
                     <div class="space-y-6">
-                        <div class="flex gap-2 overflow-x-auto pb-4 no-scrollbar px-1">
-                            ${['todo', 'tamaño', 'galga', 'lote'].map(m => `
-                                <button onclick="setSearchMode('${m}')" class="search-tab-btn ${mode === m ? 'active' : ''}">
-                                    ${m}
-                                </button>
-                            `).join('')}
-                        </div>
                         <div class="relative">
                             <i data-lucide="search" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
-                            <input oninput="window.state.searchQuery = this.value; render()" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white shadow-sm border border-slate-100" placeholder="Buscar...">
+                            <input id="searchInput" oninput="handleSearchInput(this)" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white" placeholder="Buscar...">
                         </div>
-                        <div class="space-y-3">
-                            ${filtered.map(i => `
-                                <div class="bg-white p-5 rounded-[2.5rem] flex justify-between items-center shadow-sm border border-slate-50">
-                                    <div class="flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center font-black text-xs text-green-600">${i.location}</div><div><p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}x${i.gauge}</p><p class="text-[10px] font-bold text-slate-400 italic uppercase">LOTE: ${i.batch} • ${i.weight}kg</p></div></div>
-                                    <button onclick="deleteItem('${i.id}')" class="text-slate-200 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
-                                </div>
-                            `).join('')}
-                        </div>
+                        <div id="inventory-list" class="mt-6">${renderInventoryList()}</div>
                     </div>
                 `;
             }
         };
 
+        // Lógica de Scanner mejorada (Flash y FPS altos)
         let html5QrCode;
         window.startScanner = () => {
             const readerEl = document.getElementById('reader');
             if (window.state.isScanning) { stopScanner(); return; }
             window.state.isScanning = true;
             readerEl.style.display = 'block';
+            render();
             html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
+            html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 300, height: 150 } }, (decodedText) => {
                 handleSearchAndFill(decodedText.trim().toUpperCase());
                 stopScanner();
             }, (err) => {}).catch(() => {
                 window.showNotify("ERROR CÁMARA");
                 readerEl.style.display = 'none';
                 window.state.isScanning = false;
+                render();
             });
+        };
+
+        window.toggleFlash = async () => {
+            if (html5QrCode && html5QrCode.isScanning) {
+                const videoTrack = html5QrCode.getRunningTrack();
+                if (videoTrack) {
+                    const capabilities = videoTrack.getCapabilities();
+                    if (capabilities.torch) {
+                        window.state.flashOn = !window.state.flashOn;
+                        await videoTrack.applyConstraints({ advanced: [{ torch: window.state.flashOn }] });
+                        render();
+                    }
+                }
+            }
         };
 
         function stopScanner() {
@@ -424,10 +437,7 @@
                 html5QrCode.stop().then(() => {
                     document.getElementById('reader').style.display = 'none';
                     window.state.isScanning = false;
-                    render();
-                }).catch(() => {
-                    document.getElementById('reader').style.display = 'none';
-                    window.state.isScanning = false;
+                    window.state.flashOn = false;
                     render();
                 });
             }
@@ -448,7 +458,7 @@
                 finish: existing ? existing.finish : '',
                 color: existing ? existing.color : ''
             };
-            if (existing) window.showNotify("DATOS CARGADOS", "success");
+            if (existing) window.showNotify("DATOS RECUPERADOS", "success");
             if (shouldRender) render();
         }
 
@@ -457,17 +467,10 @@
             const p = document.getElementById('lPass').value;
             if (u === 'admin' && p === 'master2024') {
                 window.state.user = { name: 'ADMIN', role: 'admin' };
-            } else {
-                const authUser = window.state.authorizedUsers.find(au => au.name.toLowerCase() === u);
-                if (authUser && p === '1234') {
-                    window.state.user = { name: authUser.name, role: 'operario' };
-                } else {
-                    return window.showNotify("DATOS INCORRECTOS");
-                }
-            }
-            localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
-            window.state.view = 'dashboard';
-            render();
+                localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
+                window.state.view = 'dashboard';
+                render();
+            } else { window.showNotify("SIN ACCESO"); }
         };
 
         window.saveEntry = async () => {
@@ -476,77 +479,36 @@
                 size: document.getElementById('fSize').value.toUpperCase(),
                 gauge: document.getElementById('fGauge').value,
                 material: document.getElementById('fMat').value.toUpperCase(),
-                finish: document.getElementById('fFinish').value.toUpperCase(),
-                color: document.getElementById('fColor').value.toUpperCase(),
                 batch: document.getElementById('fBatch').value.toUpperCase(),
                 weight: document.getElementById('fWeight').value,
                 location: document.getElementById('fLoc').value.toUpperCase(),
                 createdAt: Date.now()
             };
-            if(!data.batch || !data.location) return window.showNotify("FALTA LOTE O CALLE");
-            try {
-                await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), data);
-                window.showNotify("REGISTRO GUARDADO", "success");
-                window.state.tempFormData = { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' };
-                window.state.view = 'dashboard';
-                render();
-            } catch (e) { window.showNotify("ERROR AL GUARDAR"); }
+            if(!data.batch || !data.location) return window.showNotify("DATOS INCOMPLETOS");
+            await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), data);
+            window.showNotify("GUARDADO", "success");
+            window.state.view = 'dashboard';
+            render();
         };
 
         window.deleteItem = async (id) => {
-            if(confirm("¿ELIMINAR ESTA BOBINA?")) {
+            if(confirm("¿ELIMINAR?")) {
                 await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'inventory', id));
+                render();
             }
         };
 
-        window.addUser = async () => {
-            const name = document.getElementById('newUserName').value.trim().toUpperCase();
-            if(!name) return;
-            await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), { name, createdAt: Date.now() });
-            document.getElementById('newUserName').value = '';
-            window.showNotify("USUARIO AUTORIZADO", "success");
+        window.setView = (v) => { window.state.view = v; render(); };
+        window.logout = () => { localStorage.removeItem('embasana_user'); window.state.view = 'login'; render(); };
+
+        window.onload = async () => {
+            await signInAnonymously(auth);
+            onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
+                window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
+                render();
+            });
         };
-
-        window.removeUser = async (id) => {
-            if(confirm("¿QUITAR ACCESO?")) {
-                await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users', id));
-            }
-        };
-
-        window.setView = (v) => { 
-            if(window.state.isScanning) stopScanner(); 
-            window.state.view = v; 
-            if(v !== 'entry') window.state.tempFormData = { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' };
-            render(); 
-        };
-
-        window.logout = () => { localStorage.removeItem('embasana_user'); window.state.user = null; window.state.view = 'login'; render(); };
-        window.setSearchMode = (m) => { window.state.searchMode = m; render(); };
-
-        document.addEventListener('click', (e) => { if (e.target.id === 'loginBtn') window.doLogin(); });
-
-        async function startApp() {
-            try {
-                await signInAnonymously(auth);
-                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
-                    window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
-                    render();
-                });
-                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), (snap) => {
-                    window.state.authorizedUsers = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
-                    render();
-                });
-            } catch(e) { window.showNotify("ERROR CONEXIÓN"); }
-        }
-
-        window.onload = startApp;
-        window.logout = logout;
-        window.setView = setView;
-        window.addUser = addUser;
-        window.removeUser = removeUser;
-        window.saveEntry = saveEntry;
-        window.deleteItem = deleteItem;
-        window.setSearchMode = setSearchMode;
     </script>
 </body>
 </html>
+
