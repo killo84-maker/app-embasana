@@ -198,7 +198,6 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyByMJBcH3pdeybyyDEEukdGZjB7vxmH4jA",
             authDomain: "embasana-stock-1a7b9.firebaseapp.com",
@@ -415,8 +414,22 @@
                 { facingMode: "environment" }, 
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText) => {
-                    document.getElementById('fScanCode').value = decodedText.toUpperCase();
-                    window.showNotify("CÓDIGO ESCANEADO", "success");
+                    const cleanCode = decodedText.trim().toUpperCase();
+                    document.getElementById('fScanCode').value = cleanCode;
+                    
+                    // BUSQUEDA AUTOMÁTICA AL ESCANEAR
+                    const existing = window.state.inventory.find(i => i.scanCode === cleanCode);
+                    if (existing) {
+                        document.getElementById('fSize').value = existing.size || '';
+                        document.getElementById('fGauge').value = existing.gauge || '';
+                        document.getElementById('fMat').value = existing.material || '';
+                        document.getElementById('fFinish').value = existing.finish || '';
+                        document.getElementById('fColor').value = existing.color || '';
+                        window.showNotify("DATOS CARGADOS", "success");
+                    } else {
+                        window.showNotify("NUEVO PRODUCTO", "success");
+                    }
+                    
                     stopScanner();
                 },
                 (err) => {}
