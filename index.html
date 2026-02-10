@@ -114,27 +114,6 @@
             position: relative;
         }
 
-        .search-tab-btn {
-            background: white;
-            padding: 0.8rem 1rem;
-            border-radius: 1rem;
-            font-size: 0.7rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            color: #94a3b8;
-            border: 2px solid transparent;
-            transition: all 0.2s;
-            flex: 1;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        }
-
-        .search-tab-btn.active {
-            border-color: #22c55e;
-            color: #22c55e;
-            background: #f0fdf4;
-        }
-        
         #notification {
             position: fixed;
             top: 20px;
@@ -151,8 +130,6 @@
             min-width: 250px;
             text-align: center;
         }
-
-        .no-scrollbar::-webkit-scrollbar { display: none; }
 
         .btn-scan-main {
             width: 48px;
@@ -209,7 +186,6 @@
         const fbApp = initializeApp(firebaseConfig);
         const db = getFirestore(fbApp);
         const auth = getAuth(fbApp);
-        
         const currentAppId = 'embasana-stock-prod';
 
         window.state = {
@@ -219,7 +195,9 @@
             authorizedUsers: [],
             searchQuery: '',
             searchMode: 'todo',
-            isScanning: false
+            isScanning: false,
+            // Estado temporal para los campos del formulario cuando se escanea
+            tempFormData: { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' }
         };
 
         window.showNotify = (msg, type = 'error') => {
@@ -249,9 +227,7 @@
                                 <i data-lucide="log-out"></i>
                             </button>
                         </header>
-                        
                         ${renderCurrentView()}
-                        
                         <div class="tab-bar-container">
                             <div class="tab-bar">
                                 <div onclick="setView('dashboard')" class="nav-item ${window.state.view === 'dashboard' ? 'active' : ''}">
@@ -273,10 +249,9 @@
 
         const renderLogin = () => `
             <div class="h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-                <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" class="logo-login" alt="Logo Embasana">
+                <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" class="logo-login" alt="Logo ShadowMir">
                 <h1 class="text-slate-800 text-3xl font-black uppercase mb-2 tracking-tighter">STOCK CONTROL</h1>
                 <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Acceso Restringido</p>
-                
                 <div class="w-full max-w-xs space-y-3">
                     <input id="lUser" class="input-box uppercase" placeholder="USUARIO">
                     <input id="lPass" type="password" class="input-box" placeholder="PIN">
@@ -300,7 +275,7 @@
                                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Stock Total</p>
                             </div>
                         </div>
-                        ${window.state.user && window.state.user.role === 'admin' ? `
+                        ${window.state.user?.role === 'admin' ? `
                             <div onclick="setView('users')" class="bg-indigo-600 p-6 rounded-[2.5rem] text-white flex justify-between items-center cursor-pointer shadow-lg shadow-indigo-100 active:scale-95 transition-transform">
                                 <div><p class="text-lg font-black italic uppercase tracking-tighter">Panel Maestro</p><p class="text-[9px] font-bold opacity-70 uppercase tracking-widest">Gestionar Trabajadores</p></div><i data-lucide="shield-check" class="w-8 h-8 opacity-50"></i>
                             </div>
@@ -313,7 +288,7 @@
                                         <div><p class="text-xs font-black uppercase text-slate-700">${item.material || 'BBN'} ${item.size}x${item.gauge}</p><p class="text-[9px] font-bold text-slate-400 uppercase italic">Lote: ${item.batch}</p></div>
                                         <div class="text-right"><p class="text-xs font-black">${item.weight}kg</p><p class="text-[9px] font-bold text-green-500 uppercase">CALLE ${item.location}</p></div>
                                     </div>
-                                `).join('') : '<p class="text-center text-slate-400 text-xs font-bold py-4">No hay movimientos registrados</p>'}
+                                `).join('') : '<p class="text-center text-slate-400 text-xs font-bold py-4">Sin movimientos</p>'}
                             </div>
                         </div>
                     </div>
@@ -327,39 +302,37 @@
                             <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Nuevo Trabajador</h3>
                             <div class="flex gap-2">
                                 <input id="newUserName" class="input-box uppercase" placeholder="NOMBRE">
-                                <button onclick="addUser()" class="bg-green-500 text-white p-4 rounded-2xl shadow-lg shadow-green-100 active:scale-90 transition-transform"><i data-lucide="user-plus"></i></button>
+                                <button onclick="addUser()" class="bg-green-500 text-white p-4 rounded-2xl shadow-lg active:scale-90 transition-transform"><i data-lucide="user-plus"></i></button>
                             </div>
                         </div>
                         <div class="card-main">
                             <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Personal Autorizado</h3>
                             <div class="space-y-3">
-                                ${window.state.authorizedUsers.map(u => `<div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl"><span class="font-black text-xs uppercase tracking-tight text-slate-700">${u.name}</span><button onclick="removeUser('${u.id}')" class="text-slate-300 hover:text-red-500 transition-colors p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`).join('')}
+                                ${window.state.authorizedUsers.map(u => `<div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl"><span class="font-black text-xs uppercase tracking-tight text-slate-700">${u.name}</span><button onclick="removeUser('${u.id}')" class="text-slate-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`).join('')}
                             </div>
                         </div>
-                        <button onclick="setView('dashboard')" class="w-full text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Cerrar Panel</button>
                     </div>
                 `;
             }
 
             if (window.state.view === 'entry') {
+                const d = window.state.tempFormData;
                 return `
                     <div class="card-main">
                         <div id="reader"></div>
                         <div onclick="startScanner()" class="btn-scan-main active:scale-90 transition-transform">
                             <i data-lucide="scan"></i>
                         </div>
-                        
                         <div class="w-full mb-6 text-center">
-                            <p class="label-text !text-center">ESCÁNER</p>
-                            <input id="fScanCode" class="input-box uppercase text-center !bg-slate-50 border-2 border-dashed border-slate-200" placeholder="">
+                            <p class="label-text !text-center">CÓDIGO DE BARRAS</p>
+                            <input id="fScanCode" class="input-box uppercase text-center !bg-slate-50 border-2 border-dashed border-slate-200" placeholder="---" value="${d.scanCode || ''}" oninput="handleManualCode(this.value)">
                         </div>
-
                         <div class="grid grid-cols-2 gap-x-4 gap-y-4">
-                            <div><p class="label-text">Tamaño</p><input id="fSize" type="text" class="input-box uppercase"></div>
-                            <div><p class="label-text">Galga</p><input id="fGauge" type="number" class="input-box"></div>
-                            <div><p class="label-text">Material</p><input id="fMat" class="input-box uppercase"></div>
-                            <div><p class="label-text">Acabado</p><input id="fFinish" class="input-box uppercase"></div>
-                            <div><p class="label-text">Color</p><input id="fColor" class="input-box uppercase"></div>
+                            <div><p class="label-text">Tamaño</p><input id="fSize" type="text" class="input-box uppercase" value="${d.size || ''}"></div>
+                            <div><p class="label-text">Galga</p><input id="fGauge" type="number" class="input-box" value="${d.gauge || ''}"></div>
+                            <div><p class="label-text">Material</p><input id="fMat" class="input-box uppercase" value="${d.material || ''}"></div>
+                            <div><p class="label-text">Acabado</p><input id="fFinish" class="input-box uppercase" value="${d.finish || ''}"></div>
+                            <div><p class="label-text">Color</p><input id="fColor" class="input-box uppercase" value="${d.color || ''}"></div>
                             <div class="col-span-2 border-t border-slate-100 pt-4 mt-2"></div>
                             <div class="col-span-2"><p class="label-text">Nº Lote</p><input id="fBatch" class="input-box uppercase"></div>
                             <div><p class="label-text">Peso (kg)</p><input id="fWeight" type="number" class="input-box"></div>
@@ -378,7 +351,7 @@
                     if (mode === 'tamaño') return String(i.size).toLowerCase().includes(query);
                     if (mode === 'galga') return String(i.gauge).includes(query);
                     if (mode === 'lote') return String(i.batch).toLowerCase().includes(query);
-                    return String(i.material).toLowerCase().includes(query) || String(i.batch).toLowerCase().includes(query);
+                    return String(i.material).toLowerCase().includes(query) || String(i.batch).toLowerCase().includes(query) || String(i.scanCode).toLowerCase().includes(query);
                 });
 
                 return `
@@ -400,6 +373,7 @@
             }
         };
 
+        // LÓGICA DE ESCANEO CORREGIDA
         let html5QrCode;
         window.startScanner = () => {
             const readerEl = document.getElementById('reader');
@@ -407,34 +381,19 @@
 
             window.state.isScanning = true;
             readerEl.style.display = 'block';
-            window.showNotify("CÁMARA ACTIVADA", "success");
-
+            
             html5QrCode = new Html5Qrcode("reader");
             html5QrCode.start(
                 { facingMode: "environment" }, 
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText) => {
-                    const cleanCode = decodedText.trim().toUpperCase();
-                    document.getElementById('fScanCode').value = cleanCode;
-                    
-                    // BUSQUEDA AUTOMÁTICA AL ESCANEAR
-                    const existing = window.state.inventory.find(i => i.scanCode === cleanCode);
-                    if (existing) {
-                        document.getElementById('fSize').value = existing.size || '';
-                        document.getElementById('fGauge').value = existing.gauge || '';
-                        document.getElementById('fMat').value = existing.material || '';
-                        document.getElementById('fFinish').value = existing.finish || '';
-                        document.getElementById('fColor').value = existing.color || '';
-                        window.showNotify("DATOS CARGADOS", "success");
-                    } else {
-                        window.showNotify("NUEVO PRODUCTO", "success");
-                    }
-                    
+                    const code = decodedText.trim().toUpperCase();
+                    handleSearchAndFill(code);
                     stopScanner();
                 },
                 (err) => {}
             ).catch(() => {
-                window.showNotify("ERROR CÁMARA", "error");
+                window.showNotify("ERROR CÁMARA");
                 readerEl.style.display = 'none';
                 window.state.isScanning = false;
             });
@@ -443,128 +402,126 @@
         function stopScanner() {
             if (html5QrCode) {
                 html5QrCode.stop().then(() => {
-                    const el = document.getElementById('reader');
-                    if(el) el.style.display = 'none';
+                    document.getElementById('reader').style.display = 'none';
                     window.state.isScanning = false;
                     render();
                 }).catch(() => {
-                    const el = document.getElementById('reader');
-                    if(el) el.style.display = 'none';
+                    document.getElementById('reader').style.display = 'none';
                     window.state.isScanning = false;
                     render();
                 });
             }
         }
 
-        window.doLogin = () => {
-            const uInput = document.getElementById('lUser');
-            const pInput = document.getElementById('lPass');
-            if (!uInput || !pInput) return;
+        window.handleManualCode = (val) => {
+            const code = val.trim().toUpperCase();
+            handleSearchAndFill(code, false); // false para no renderizar en bucle infinito si se llama desde el input
+        };
 
-            const u = uInput.value.trim().toLowerCase();
-            const p = pInput.value;
+        function handleSearchAndFill(code, shouldRender = true) {
+            const existing = window.state.inventory.find(i => i.scanCode === code);
             
+            window.state.tempFormData = {
+                scanCode: code,
+                size: existing ? existing.size : '',
+                gauge: existing ? existing.gauge : '',
+                material: existing ? existing.material : '',
+                finish: existing ? existing.finish : '',
+                color: existing ? existing.color : ''
+            };
+
+            if (existing) window.showNotify("DATOS CARGADOS", "success");
+            if (shouldRender) render();
+        }
+
+        window.doLogin = () => {
+            const u = document.getElementById('lUser').value.trim().toLowerCase();
+            const p = document.getElementById('lPass').value;
             if (u === 'admin' && p === 'master2024') {
                 window.state.user = { name: 'ADMIN', role: 'admin' };
             } else {
-                const authorized = window.state.authorizedUsers.find(au => au.name.toLowerCase() === u);
-                if (authorized && p === '1234') {
-                    window.state.user = { name: authorized.name, role: 'operario' };
+                const authUser = window.state.authorizedUsers.find(au => au.name.toLowerCase() === u);
+                if (authUser && p === '1234') {
+                    window.state.user = { name: authUser.name, role: 'operario' };
                 } else {
-                    window.showNotify("DATOS INCORRECTOS", "error");
-                    return;
+                    return window.showNotify("DATOS INCORRECTOS");
                 }
             }
             localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
-            window.state.view = 'dashboard'; 
+            window.state.view = 'dashboard';
             render();
-        };
-
-        window.addUser = async () => {
-            const name = document.getElementById('newUserName').value.trim().toUpperCase();
-            if(!name) return;
-            try {
-                await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), { name, createdAt: Date.now() });
-                document.getElementById('newUserName').value = '';
-                window.showNotify("USUARIO AÑADIDO", "success");
-            } catch (e) { window.showNotify("ERROR AL GUARDAR"); }
-        };
-
-        window.removeUser = async (id) => {
-            if(confirm("¿ELIMINAR ACCESO?")) {
-                try {
-                    await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users', id));
-                } catch (e) { window.showNotify("ERROR AL ELIMINAR"); }
-            }
         };
 
         window.saveEntry = async () => {
             const data = {
-                size: document.getElementById('fSize').value.toUpperCase(),
-                material: document.getElementById('fMat').value.toUpperCase(),
-                location: document.getElementById('fLoc').value.toUpperCase(),
-                weight: document.getElementById('fWeight').value,
-                batch: document.getElementById('fBatch').value.toUpperCase(),
-                gauge: document.getElementById('fGauge').value,
-                color: document.getElementById('fColor').value.toUpperCase(),
-                finish: document.getElementById('fFinish').value.toUpperCase(),
                 scanCode: document.getElementById('fScanCode').value.toUpperCase(),
+                size: document.getElementById('fSize').value.toUpperCase(),
+                gauge: document.getElementById('fGauge').value,
+                material: document.getElementById('fMat').value.toUpperCase(),
+                finish: document.getElementById('fFinish').value.toUpperCase(),
+                color: document.getElementById('fColor').value.toUpperCase(),
+                batch: document.getElementById('fBatch').value.toUpperCase(),
+                weight: document.getElementById('fWeight').value,
+                location: document.getElementById('fLoc').value.toUpperCase(),
                 createdAt: Date.now()
             };
-            if(!data.batch || !data.location) return window.showNotify("FALTA LOTE O CALLE", "error");
+            if(!data.batch || !data.location) return window.showNotify("FALTA LOTE O CALLE");
             try {
                 await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), data);
-                window.showNotify("REGISTRO EXITOSO", "success");
+                window.showNotify("REGISTRO GUARDADO", "success");
+                window.state.tempFormData = { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' };
                 window.state.view = 'dashboard';
                 render();
             } catch (e) { window.showNotify("ERROR AL GUARDAR"); }
         };
 
         window.deleteItem = async (id) => {
-            if(confirm("¿ELIMINAR ESTE REGISTRO?")) {
-                try {
-                    await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'inventory', id));
-                } catch (e) { window.showNotify("ERROR AL ELIMINAR"); }
+            if(confirm("¿ELIMINAR ESTA BOBINA?")) {
+                await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'inventory', id));
             }
         };
 
-        window.setView = (v) => { if(window.state.isScanning) stopScanner(); window.state.view = v; render(); };
+        window.addUser = async () => {
+            const name = document.getElementById('newUserName').value.trim().toUpperCase();
+            if(!name) return;
+            await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), { name, createdAt: Date.now() });
+            document.getElementById('newUserName').value = '';
+            window.showNotify("USUARIO AUTORIZADO", "success");
+        };
+
+        window.removeUser = async (id) => {
+            if(confirm("¿QUITAR ACCESO?")) {
+                await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users', id));
+            }
+        };
+
+        window.setView = (v) => { 
+            if(window.state.isScanning) stopScanner(); 
+            window.state.view = v; 
+            if(v !== 'entry') window.state.tempFormData = { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' };
+            render(); 
+        };
+
         window.logout = () => { localStorage.removeItem('embasana_user'); window.state.user = null; window.state.view = 'login'; render(); };
         window.setSearchMode = (m) => { window.state.searchMode = m; render(); };
 
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'loginBtn') window.doLogin();
-        });
+        document.addEventListener('click', (e) => { if (e.target.id === 'loginBtn') window.doLogin(); });
 
         async function startApp() {
             try {
                 await signInAnonymously(auth);
-                
                 onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
                     window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
                     render();
-                }, (err) => console.error("Error inventario:", err));
-
+                });
                 onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), (snap) => {
                     window.state.authorizedUsers = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
                     render();
-                }, (err) => console.error("Error usuarios:", err));
-
-            } catch(e) { 
-                console.error("Error de inicio:", e);
-                window.showNotify("ERROR DE CONEXIÓN");
-                render();
-            }
+                });
+            } catch(e) { window.showNotify("ERROR CONEXIÓN"); }
         }
 
         window.onload = startApp;
-        window.logout = logout;
-        window.setView = setView;
-        window.addUser = addUser;
-        window.removeUser = removeUser;
-        window.saveEntry = saveEntry;
-        window.deleteItem = deleteItem;
-        window.setSearchMode = setSearchMode;
     </script>
 </body>
 </html>
