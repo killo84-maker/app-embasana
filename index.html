@@ -276,8 +276,6 @@
             const root = document.getElementById('app');
             if (window.state.view === 'login') {
                 root.innerHTML = renderLogin();
-                const loginBtn = document.getElementById('loginBtn');
-                if (loginBtn) loginBtn.onclick = window.doLogin;
             } else {
                 root.innerHTML = `
                     <div class="max-w-md mx-auto p-6 pb-40">
@@ -319,7 +317,7 @@
                 <div class="w-full max-w-xs space-y-3">
                     <input id="lUser" class="input-box uppercase" placeholder="USUARIO">
                     <input id="lPass" type="password" class="input-box" placeholder="PIN">
-                    <button id="loginBtn" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-xl active:scale-95 transition-all">Entrar</button>
+                    <button onclick="doLogin()" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-xl active:scale-95 transition-all">Entrar</button>
                 </div>
             </div>
         `;
@@ -409,7 +407,7 @@
                             <div><p class="label-text">Peso kg</p><input id="fWeight" type="number" class="input-box"></div>
                             <div><p class="label-text">Calle</p><input id="fLoc" class="input-box uppercase"></div>
                         </div>
-                        <button onclick="saveEntry()" class="btn-confirm active:scale-95 transition-transform">Guardar</button>
+                        <button onclick="saveData()" class="btn-confirm">Guardar Bobina</button>
                     </div>
                 `;
             }
@@ -417,145 +415,138 @@
             if (window.state.view === 'search') {
                 return `
                     <div class="space-y-6">
-                        <div class="flex gap-2 overflow-x-auto pb-4 no-scrollbar px-1">
+                        <div class="relative">
+                            <input class="input-box pl-12 uppercase" placeholder="BUSCAR..." oninput="handleSearchInput(this)">
+                            <i data-lucide="search" class="absolute left-4 top-4 text-slate-300 w-5 h-5"></i>
+                        </div>
+                        <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                             ${['todo', 'tamaño', 'galga', 'lote'].map(m => `
-                                <button onclick="setSearchMode('${m}')" class="search-tab-btn ${window.state.searchMode === m ? 'active' : ''}">
-                                    ${m}
-                                </button>
+                                <button onclick="setSearchMode('${m}')" class="search-tab-btn ${window.state.searchMode === m ? 'active' : ''}">${m}</button>
                             `).join('')}
                         </div>
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
-                            <input id="searchInput" oninput="handleSearchInput(this)" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white shadow-sm border border-slate-100" placeholder="Buscar...">
-                        </div>
-                        <div id="inventory-list" class="mt-6">
-                            ${renderInventoryList()}
-                        </div>
+                        <div id="inventory-list" class="space-y-1">${renderInventoryList()}</div>
                     </div>
                 `;
             }
         };
 
-        let html5QrCode;
-        window.startScanner = () => {
-            const readerEl = document.getElementById('reader');
-            if (window.state.isScanning) { stopScanner(); return; }
-            
-            window.state.isScanning = true;
-            readerEl.style.display = 'block';
-            render(); // Re-render para mostrar el botón de flash
-            
-            html5QrCode = new Html5Qrcode("reader");
-            
-            // Configuración optimizada para códigos de barras complejos y dañados
-            const config = { 
-                fps: 20, // Más frames por segundo para detectar rápido
-                qrbox: (viewWidth, viewHeight) => {
-                    // Área de escaneo rectangular (mejor para códigos de barras largos)
-                    return { width: viewWidth * 0.8, height: 150 };
-                },
-                aspectRatio: 1.0,
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true // Usar API nativa si existe (más potente)
-                }
-            };
-
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                (decodedText) => {
-                    handleSearchAndFill(decodedText.trim().toUpperCase());
-                    stopScanner();
-                    window.showNotify("LECTURA OK", "success");
-                }, 
-                (err) => {}
-            ).catch(() => {
-                window.showNotify("ERROR CÁMARA");
-                readerEl.style.display = 'none';
-                window.state.isScanning = false;
-                render();
-            });
-        };
-
-        window.toggleFlash = async () => {
-            if (html5QrCode && html5QrCode.isScanning) {
-                try {
-                    const videoTrack = html5QrCode.getRunningTrack();
-                    if (videoTrack) {
-                        const capabilities = videoTrack.getCapabilities();
-                        if (capabilities.torch) {
-                            window.state.flashOn = !window.state.flashOn;
-                            await videoTrack.applyConstraints({
-                                advanced: [{ torch: window.state.flashOn }]
-                            });
-                            render();
-                        } else {
-                            window.showNotify("FLASH NO SOPORTADO");
-                        }
-                    }
-                } catch (e) {
-                    window.showNotify("ERROR FLASH");
-                }
-            }
-        };
-
-        function stopScanner() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('reader').style.display = 'none';
-                    window.state.isScanning = false;
-                    window.state.flashOn = false;
-                    render();
-                }).catch(() => {
-                    document.getElementById('reader').style.display = 'none';
-                    window.state.isScanning = false;
-                    window.state.flashOn = false;
-                    render();
-                });
-            }
-        }
-
-        window.handleManualCode = (val) => {
-            const code = val.trim().toUpperCase();
-            handleSearchAndFill(code, false);
-        };
-
-        function handleSearchAndFill(code, shouldRender = true) {
-            // Intentamos limpiar caracteres extraños que a veces meten los lectores en códigos dañados
-            const cleanCode = code.replace(/[^a-zA-Z0-9]/g, '');
-            const existing = window.state.inventory.find(i => i.scanCode === cleanCode || i.scanCode === code);
-            
-            window.state.tempFormData = {
-                scanCode: code,
-                size: existing ? existing.size : '',
-                gauge: existing ? existing.gauge : '',
-                material: existing ? existing.material : '',
-                finish: existing ? existing.finish : '',
-                color: existing ? existing.color : ''
-            };
-            if (existing) window.showNotify("AUTO-COMPLETADO", "success");
-            if (shouldRender) render();
-        }
-
         window.doLogin = () => {
-            const u = document.getElementById('lUser').value.trim().toLowerCase();
+            const u = document.getElementById('lUser').value.toLowerCase().trim();
             const p = document.getElementById('lPass').value;
             if (u === 'admin' && p === 'master2024') {
-                window.state.user = { name: 'ADMIN', role: 'admin' };
+                window.state.user = { name: 'Admin', role: 'admin' };
+                localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
+                window.state.view = 'dashboard';
+                render();
             } else {
-                const authUser = window.state.authorizedUsers.find(au => au.name.toLowerCase() === u);
-                if (authUser && p === '1234') {
-                    window.state.user = { name: authUser.name, role: 'operario' };
-                } else {
-                    return window.showNotify("SIN ACCESO");
-                }
+                window.showNotify("Acceso denegado");
             }
-            localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
-            window.state.view = 'dashboard';
+        };
+
+        window.logout = () => {
+            localStorage.removeItem('embasana_user');
+            window.state.view = 'login';
             render();
         };
 
-        window.saveEntry = async () => {
+        window.setView = (v) => {
+            if (window.state.isScanning) stopScanner();
+            window.state.view = v;
+            render();
+        };
+
+        window.setSearchMode = (m) => {
+            window.state.searchMode = m;
+            render();
+        };
+
+        let html5QrCode;
+        window.startScanner = async () => {
+            if (window.state.isScanning) {
+                stopScanner();
+                return;
+            }
+
+            // CORRECCIÓN: Asegurar visibilidad antes de instanciar
+            const readerEl = document.getElementById('reader');
+            if (readerEl) readerEl.style.display = 'block';
+
+            window.state.isScanning = true;
+            render();
+
+            html5QrCode = new Html5Qrcode("reader");
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 20, qrbox: { width: 280, height: 150 } },
+                    (text) => {
+                        const found = window.state.inventory.find(i => i.scanCode === text.trim().toUpperCase());
+                        window.state.tempFormData = { 
+                            scanCode: text.trim().toUpperCase(), 
+                            size: found?.size || '', 
+                            gauge: found?.gauge || '', 
+                            material: found?.material || '',
+                            finish: found?.finish || '',
+                            color: found?.color || ''
+                        };
+                        window.showNotify("Escaneado", "success");
+                        stopScanner();
+                    },
+                    () => {}
+                );
+            } catch (err) {
+                window.showNotify("Error de cámara");
+                if (readerEl) readerEl.style.display = 'none';
+                window.state.isScanning = false;
+                render();
+            }
+        };
+
+        window.toggleFlash = async () => {
+            if (html5QrCode?.isScanning) {
+                const videoTrack = html5QrCode.getRunningTrack();
+                if (videoTrack && videoTrack.getCapabilities().torch) {
+                    window.state.flashOn = !window.state.flashOn;
+                    await videoTrack.applyConstraints({ advanced: [{ torch: window.state.flashOn }] });
+                    render();
+                }
+            }
+        };
+
+        const stopScanner = () => {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    const readerEl = document.getElementById('reader');
+                    if (readerEl) readerEl.style.display = 'none';
+                    window.state.isScanning = false;
+                    render();
+                }).catch(() => {
+                    const readerEl = document.getElementById('reader');
+                    if (readerEl) readerEl.style.display = 'none';
+                    window.state.isScanning = false;
+                    render();
+                });
+            }
+        };
+
+        window.handleManualCode = (val) => {
+            const found = window.state.inventory.find(i => i.scanCode === val.trim().toUpperCase());
+            if (found) {
+                window.state.tempFormData = { 
+                    scanCode: val.trim().toUpperCase(), 
+                    size: found.size, 
+                    gauge: found.gauge, 
+                    material: found.material,
+                    finish: found.finish || '',
+                    color: found.color || ''
+                };
+                render();
+            } else {
+                window.state.tempFormData.scanCode = val.toUpperCase();
+            }
+        };
+
+        window.saveData = async () => {
             const data = {
                 scanCode: document.getElementById('fScanCode').value.toUpperCase(),
                 size: document.getElementById('fSize').value.toUpperCase(),
@@ -568,88 +559,53 @@
                 location: document.getElementById('fLoc').value.toUpperCase(),
                 createdAt: Date.now()
             };
-            if(!data.batch || !data.location) return window.showNotify("FALTA INFO");
+
+            if (!data.batch || !data.location || !data.weight) {
+                return window.showNotify("Faltan datos críticos");
+            }
+
             try {
                 await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), data);
-                window.showNotify("GUARDADO", "success");
+                window.showNotify("Guardado", "success");
                 window.state.tempFormData = { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' };
                 window.state.view = 'dashboard';
                 render();
-            } catch (e) { window.showNotify("ERROR DB"); }
+            } catch (e) {
+                window.showNotify("Error al guardar");
+            }
         };
 
         window.deleteItem = async (id) => {
-            if(confirm("¿ELIMINAR?")) {
+            if (confirm("¿Borrar bobina?")) {
                 await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'inventory', id));
-                if (window.state.view === 'search') {
-                    const list = document.getElementById('inventory-list');
-                    if(list) {
-                        list.innerHTML = renderInventoryList();
-                        if(window.lucide) lucide.createIcons();
-                    }
-                } else {
-                    render();
-                }
+                window.showNotify("Borrado", "success");
             }
         };
 
         window.addUser = async () => {
-            const name = document.getElementById('newUserName').value.trim().toUpperCase();
-            if(!name) return;
-            await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), { name, createdAt: Date.now() });
+            const name = document.getElementById('newUserName').value.toUpperCase().trim();
+            if (!name) return;
+            await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'users'), { name });
             document.getElementById('newUserName').value = '';
-            window.showNotify("AÑADIDO", "success");
         };
 
         window.removeUser = async (id) => {
-            if(confirm("¿QUITAR?")) {
-                await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users', id));
-            }
+            await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'users', id));
         };
 
-        window.setView = (v) => { 
-            if(window.state.isScanning) stopScanner(); 
-            window.state.view = v; 
-            window.state.searchQuery = ''; 
-            if(v !== 'entry') window.state.tempFormData = { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' };
-            render(); 
+        window.onload = async () => {
+            await signInAnonymously(auth);
+            
+            onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
+                window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
+                render();
+            });
+
+            onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'users'), (snap) => {
+                window.state.authorizedUsers = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                render();
+            });
         };
-
-        window.logout = () => { localStorage.removeItem('embasana_user'); window.state.user = null; window.state.view = 'login'; render(); };
-        window.setSearchMode = (m) => { window.state.searchMode = m; render(); };
-
-        async function startApp() {
-            try {
-                await signInAnonymously(auth);
-                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
-                    window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
-                    if (window.state.view === 'search') {
-                        const list = document.getElementById('inventory-list');
-                        if(list) {
-                            list.innerHTML = renderInventoryList();
-                            if(window.lucide) lucide.createIcons();
-                        }
-                    } else {
-                        render();
-                    }
-                });
-                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), (snap) => {
-                    window.state.authorizedUsers = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
-                    render();
-                });
-            } catch(e) { window.showNotify("ERROR CONEXIÓN"); }
-        }
-
-        window.onload = startApp;
-        window.logout = logout;
-        window.setView = setView;
-        window.addUser = addUser;
-        window.removeUser = removeUser;
-        window.saveEntry = saveEntry;
-        window.deleteItem = deleteItem;
-        window.setSearchMode = setSearchMode;
-        window.doLogin = doLogin;
-        window.toggleFlash = toggleFlash;
     </script>
 </body>
 </html>
