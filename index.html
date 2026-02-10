@@ -2,294 +2,556 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EmbasanaStock Pro</title>
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>STOCK CONTROL - Embasana</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        input[type="number"]::-webkit-inner-spin-button, 
-        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        #root:empty::before {
-            content: "Cargando aplicación...";
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;0,900;1,900&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f1f5f9; 
+            margin: 0; 
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .input-box {
+            width: 100%;
+            background-color: #f8fafc;
+            border-radius: 1rem;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            outline: none;
+            font-weight: 700;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .input-box:focus {
+            border-color: #22c55e;
+            background-color: white;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1);
+        }
+
+        .label-text {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+            margin-left: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tab-bar-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 450px;
             display: flex;
             justify-content: center;
+            align-items: flex-end;
+            z-index: 100;
+        }
+
+        .tab-bar {
+            background: white;
+            border-radius: 50px;
+            height: 70px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
             align-items: center;
-            height: 100vh;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            padding: 0 20px;
+        }
+
+        .btn-plus-center {
+            width: 75px;
+            height: 75px;
+            background: #22c55e; 
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border: 6px solid #f1f5f9;
+            margin-bottom: 35px;
+            box-shadow: 0 8px 20px rgba(34, 197, 94, 0.4);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn-plus-center:active { transform: scale(0.9); }
+
+        .nav-item { color: #cbd5e1; cursor: pointer; }
+        .nav-item.active { color: #22c55e; } 
+
+        .btn-confirm {
+            background-color: #0f172a;
+            color: white;
+            width: 100%;
+            padding: 1.4rem;
+            border-radius: 1.5rem;
             font-weight: 900;
-            color: #94a3b8;
             text-transform: uppercase;
+            font-style: italic;
+            letter-spacing: 1px;
+            margin-top: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.3);
+        }
+
+        .card-main {
+            background: white;
+            border-radius: 2.5rem;
+            padding: 2.5rem 1.5rem 1.5rem 1.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .search-tab-btn {
+            background: white;
+            padding: 0.8rem 1rem;
+            border-radius: 1rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #94a3b8;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            flex: 1;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .search-tab-btn.active {
+            border-color: #22c55e;
+            color: #22c55e;
+            background: #f0fdf4;
+        }
+        
+        #notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+            display: none;
+            min-width: 250px;
+            text-align: center;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        .btn-scan-main {
+            width: 48px;
+            height: 48px;
+            background-color: #22c55e;
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px auto;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            display: none;
+            border: 4px solid #22c55e;
+        }
+
+        .logo-login {
+            width: 100px;
+            height: 100px;
+            border-radius: 1.5rem;
+            object-fit: cover;
+            border: 4px solid white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
         }
     </style>
 </head>
-<body class="bg-slate-50">
-    <div id="root"></div>
+<body>
 
-    <!-- Carga de Librerías al final para evitar bloqueo de renderizado -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <div id="notification"></div>
+    <div id="app"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, deleteDoc, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // --- COMPONENTE DE ICONO ---
-        const Icon = ({ name, size = 24, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [name]);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        // Configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyByMJBcH3pdeybyyDEEukdGZjB7vxmH4jA",
+            authDomain: "embasana-stock-1a7b9.firebaseapp.com",
+            projectId: "embasana-stock-1a7b9",
+            storageBucket: "embasana-stock-1a7b9.firebasestorage.app",
+            appId: "1:5607146974:web:1f9fc894fc31e56ab8894f"
         };
 
-        // --- APP PRINCIPAL ---
-        function App() {
-            const [user, setUser] = useState(null);
-            const [view, setView] = useState('login');
-            const [inventory, setInventory] = useState([]);
-            const [loading, setLoading] = useState(true);
-            const [notification, setNotification] = useState(null);
-            const [searchQuery, setSearchQuery] = useState('');
+        const fbApp = initializeApp(firebaseConfig);
+        const db = getFirestore(fbApp);
+        const auth = getAuth(fbApp);
+        
+        const currentAppId = 'embasana-stock-prod';
 
-            // Cargar datos (LocalStorage para máxima compatibilidad Vercel/GitHub)
-            useEffect(() => {
-                try {
-                    const savedInv = localStorage.getItem('embasana_inventory_v3');
-                    if (savedInv) setInventory(JSON.parse(savedInv));
+        window.state = {
+            view: localStorage.getItem('embasana_user') ? 'dashboard' : 'login',
+            user: JSON.parse(localStorage.getItem('embasana_user')) || null,
+            inventory: [],
+            authorizedUsers: [],
+            searchQuery: '',
+            searchMode: 'todo',
+            isScanning: false
+        };
 
-                    const savedSession = localStorage.getItem('embasana_session_v3');
-                    if (savedSession) {
-                        setUser(JSON.parse(savedSession));
-                        setView('dashboard');
-                    }
-                } catch (e) {
-                    console.error("Error inicializando:", e);
-                } finally {
-                    setLoading(false);
-                }
-            }, []);
+        window.showNotify = (msg, type = 'error') => {
+            const el = document.getElementById('notification');
+            if(!el) return;
+            el.innerText = msg;
+            el.style.display = 'block';
+            el.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
+            el.style.color = 'white';
+            setTimeout(() => { el.style.display = 'none'; }, 3000);
+        };
 
-            // Guardar cambios persistentes
-            useEffect(() => {
-                if (!loading) {
-                    localStorage.setItem('embasana_inventory_v3', JSON.stringify(inventory));
-                }
-            }, [inventory, loading]);
-
-            const showNotify = (text) => {
-                setNotification(text);
-                setTimeout(() => setNotification(null), 3000);
-            };
-
-            const handleLogin = (e) => {
-                e.preventDefault();
-                const uName = e.target.username.value.trim().toUpperCase();
-                const pin = e.target.pin.value;
-
-                // Usuarios definidos
-                const validUsers = {
-                    'ADMIN': 'master2024',
-                    'JUAN': '1234'
-                };
-
-                if (validUsers[uName] === pin) {
-                    const userData = { name: uName, role: uName === 'ADMIN' ? 'admin' : 'operario' };
-                    setUser(userData);
-                    localStorage.setItem('embasana_session_v3', JSON.stringify(userData));
-                    setView('dashboard');
-                } else {
-                    showNotify("ACCESO DENEGADO");
-                }
-            };
-
-            const logout = () => {
-                localStorage.removeItem('embasana_session_v3');
-                setUser(null);
-                setView('login');
-            };
-
-            const saveEntry = (e) => {
-                e.preventDefault();
-                const form = e.target;
-                const newItem = {
-                    id: 'ID' + Date.now(),
-                    size: form.size.value,
-                    material: form.material.value.toUpperCase(),
-                    location: form.location.value.toUpperCase(),
-                    weight: form.weight.value,
-                    batch: form.batch.value.toUpperCase(),
-                    gauge: form.gauge.value,
-                    createdAt: Date.now()
-                };
-                setInventory([newItem, ...inventory]);
-                showNotify("REGISTRO GUARDADO");
-                setView('dashboard');
-            };
-
-            const deleteItem = (id) => {
-                if(window.confirm("¿BORRAR ESTA BOBINA?")) {
-                    setInventory(prev => prev.filter(i => i.id !== id));
-                }
-            };
-
-            // Filtro de búsqueda optimizado
-            const filteredInventory = useMemo(() => {
-                const q = searchQuery.toUpperCase();
-                return inventory.filter(i => 
-                    i.batch.includes(q) || 
-                    i.material.includes(q) || 
-                    i.size.includes(q) ||
-                    i.location.includes(q)
-                );
-            }, [inventory, searchQuery]);
-
-            if (loading) return null; // El CSS se encarga del mensaje de carga inicial
-
-            if (view === 'login') {
-                return (
-                    <div className="h-screen flex flex-col items-center justify-center p-8 bg-slate-50">
-                        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 border border-slate-100 overflow-hidden">
-                            <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" className="w-full h-full object-cover" alt="Logo" />
+        window.render = () => {
+            const root = document.getElementById('app');
+            if (window.state.view === 'login') {
+                root.innerHTML = renderLogin();
+            } else {
+                root.innerHTML = `
+                    <div class="max-w-md mx-auto p-6 pb-40">
+                        <header class="flex justify-between items-center mb-10">
+                            <h1 class="text-2xl font-black italic uppercase tracking-tighter text-slate-900">
+                                ${window.state.view === 'entry' ? 'REGISTRO' : 
+                                  window.state.view === 'search' ? 'BUSCAR' : 
+                                  window.state.view === 'users' ? 'USUARIOS' : 'INICIO'}
+                            </h1>
+                            <button onclick="logout()" class="text-slate-300 hover:text-slate-500 transition-colors">
+                                <i data-lucide="log-out"></i>
+                            </button>
+                        </header>
+                        
+                        ${renderCurrentView()}
+                        
+                        <div class="tab-bar-container">
+                            <div class="tab-bar">
+                                <div onclick="setView('dashboard')" class="nav-item ${window.state.view === 'dashboard' ? 'active' : ''}">
+                                    <i data-lucide="layout-grid" stroke-width="2.5"></i>
+                                </div>
+                                <div onclick="setView('entry')" class="btn-plus-center">
+                                    <i data-lucide="plus" size="32" stroke-width="3"></i>
+                                </div>
+                                <div onclick="setView('search')" class="nav-item ${window.state.view === 'search' ? 'active' : ''}">
+                                    <i data-lucide="search" stroke-width="2.5"></i>
+                                </div>
+                            </div>
                         </div>
-                        <h1 className="text-2xl font-black italic uppercase mb-8 tracking-tighter text-slate-800">EMBASANA STOCK</h1>
-                        <form onSubmit={handleLogin} className="w-full max-w-xs space-y-3">
-                            <input name="username" required autoComplete="off" className="w-full bg-white border border-slate-200 p-4 rounded-2xl outline-none font-bold text-center uppercase focus:border-indigo-500 transition-all" placeholder="Usuario" />
-                            <input name="pin" type="password" required className="w-full bg-white border border-slate-200 p-4 rounded-2xl outline-none font-bold text-center focus:border-indigo-500 transition-all" placeholder="PIN" />
-                            <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-lg active:scale-95 transition-transform">Entrar</button>
-                        </form>
-                        {notification && <div className="mt-4 text-red-500 font-black text-xs uppercase">{notification}</div>}
                     </div>
-                );
+                `;
+            }
+            if (window.lucide) lucide.createIcons();
+        };
+
+        const renderLogin = () => `
+            <div class="h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
+                <img src="https://i.postimg.cc/3rvnp3Rj/definitivo-logo.png" class="logo-login" alt="Logo Embasana">
+                <h1 class="text-slate-800 text-3xl font-black uppercase mb-2 tracking-tighter">STOCK CONTROL</h1>
+                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Acceso Restringido</p>
+                
+                <div class="w-full max-w-xs space-y-3">
+                    <input id="lUser" class="input-box uppercase" placeholder="USUARIO">
+                    <input id="lPass" type="password" class="input-box" placeholder="PIN">
+                    <button id="loginBtn" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black italic uppercase shadow-xl active:scale-95 transition-all">Entrar</button>
+                </div>
+            </div>
+        `;
+
+        const renderCurrentView = () => {
+            if (window.state.view === 'dashboard') {
+                const totalKg = window.state.inventory.reduce((a, b) => a + Number(b.weight || 0), 0);
+                return `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                <p class="text-4xl font-black text-slate-900">${window.state.inventory.length}</p>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Bobinas</p>
+                            </div>
+                            <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl shadow-slate-200">
+                                <p class="text-2xl font-black text-green-400">${totalKg.toLocaleString()} <span class="text-xs">kg</span></p>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Stock Total</p>
+                            </div>
+                        </div>
+                        ${window.state.user && window.state.user.role === 'admin' ? `
+                            <div onclick="setView('users')" class="bg-indigo-600 p-6 rounded-[2.5rem] text-white flex justify-between items-center cursor-pointer shadow-lg shadow-indigo-100 active:scale-95 transition-transform">
+                                <div><p class="text-lg font-black italic uppercase tracking-tighter">Panel Maestro</p><p class="text-[9px] font-bold opacity-70 uppercase tracking-widest">Gestionar Trabajadores</p></div><i data-lucide="shield-check" class="w-8 h-8 opacity-50"></i>
+                            </div>
+                        ` : ''}
+                        <div class="card-main">
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Últimos Registros</h3>
+                            <div class="space-y-4">
+                                ${window.state.inventory.length > 0 ? window.state.inventory.slice(0, 5).map(item => `
+                                    <div class="flex justify-between items-center border-b border-slate-50 pb-3">
+                                        <div><p class="text-xs font-black uppercase text-slate-700">${item.material || 'BBN'} ${item.size}x${item.gauge}</p><p class="text-[9px] font-bold text-slate-400 uppercase italic">Lote: ${item.batch}</p></div>
+                                        <div class="text-right"><p class="text-xs font-black">${item.weight}kg</p><p class="text-[9px] font-bold text-green-500 uppercase">CALLE ${item.location}</p></div>
+                                    </div>
+                                `).join('') : '<p class="text-center text-slate-400 text-xs font-bold py-4">No hay movimientos registrados</p>'}
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
 
-            return (
-                <div className="min-h-screen pb-32 max-w-md mx-auto p-6 bg-slate-50">
-                    <header className="flex justify-between items-center mb-8">
-                        <div>
-                            <h1 className="text-2xl font-black italic uppercase leading-none tracking-tighter">
-                                {view === 'dashboard' ? 'INICIO' : view === 'entry' ? 'REGISTRO' : 'BUSCAR'}
-                            </h1>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">HOLA, {user.name}</p>
+            if (window.state.view === 'users') {
+                return `
+                    <div class="space-y-6">
+                        <div class="card-main">
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Nuevo Trabajador</h3>
+                            <div class="flex gap-2">
+                                <input id="newUserName" class="input-box uppercase" placeholder="NOMBRE">
+                                <button onclick="addUser()" class="bg-green-500 text-white p-4 rounded-2xl shadow-lg shadow-green-100 active:scale-90 transition-transform"><i data-lucide="user-plus"></i></button>
+                            </div>
                         </div>
-                        <button onClick={logout} className="bg-white p-3 rounded-xl text-slate-300 shadow-sm border border-slate-100 active:bg-red-50 active:text-red-400">
-                            <Icon name="log-out" size={20}/>
-                        </button>
-                    </header>
+                        <div class="card-main">
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Personal Autorizado</h3>
+                            <div class="space-y-3">
+                                ${window.state.authorizedUsers.map(u => `<div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl"><span class="font-black text-xs uppercase tracking-tight text-slate-700">${u.name}</span><button onclick="removeUser('${u.id}')" class="text-slate-300 hover:text-red-500 transition-colors p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`).join('')}
+                            </div>
+                        </div>
+                        <button onclick="setView('dashboard')" class="w-full text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Cerrar Panel</button>
+                    </div>
+                `;
+            }
 
-                    {view === 'dashboard' && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 text-center">
-                                    <p className="text-4xl font-black text-slate-800">{inventory.length}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bobinas</p>
+            if (window.state.view === 'entry') {
+                return `
+                    <div class="card-main">
+                        <div id="reader"></div>
+                        <div onclick="startScanner()" class="btn-scan-main active:scale-90 transition-transform">
+                            <i data-lucide="scan"></i>
+                        </div>
+                        
+                        <div class="w-full mb-6 text-center">
+                            <p class="label-text !text-center">ESCÁNER</p>
+                            <input id="fScanCode" class="input-box uppercase text-center !bg-slate-50 border-2 border-dashed border-slate-200" placeholder="">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-4">
+                            <div><p class="label-text">Tamaño</p><input id="fSize" type="text" class="input-box uppercase"></div>
+                            <div><p class="label-text">Galga</p><input id="fGauge" type="number" class="input-box"></div>
+                            <div><p class="label-text">Material</p><input id="fMat" class="input-box uppercase"></div>
+                            <div><p class="label-text">Acabado</p><input id="fFinish" class="input-box uppercase"></div>
+                            <div><p class="label-text">Color</p><input id="fColor" class="input-box uppercase"></div>
+                            <div class="col-span-2 border-t border-slate-100 pt-4 mt-2"></div>
+                            <div class="col-span-2"><p class="label-text">Nº Lote</p><input id="fBatch" class="input-box uppercase"></div>
+                            <div><p class="label-text">Peso (kg)</p><input id="fWeight" type="number" class="input-box"></div>
+                            <div><p class="label-text">Calle</p><input id="fLoc" class="input-box uppercase"></div>
+                        </div>
+                        <button onclick="saveEntry()" class="btn-confirm active:scale-95 transition-transform">Confirmar Registro</button>
+                    </div>
+                `;
+            }
+
+            if (window.state.view === 'search') {
+                const query = window.state.searchQuery.toLowerCase().trim();
+                const mode = window.state.searchMode;
+                const filtered = window.state.inventory.filter(i => {
+                    if (!query) return true;
+                    if (mode === 'tamaño') return String(i.size).toLowerCase().includes(query);
+                    if (mode === 'galga') return String(i.gauge).includes(query);
+                    if (mode === 'lote') return String(i.batch).toLowerCase().includes(query);
+                    return String(i.material).toLowerCase().includes(query) || String(i.batch).toLowerCase().includes(query);
+                });
+
+                return `
+                    <div class="space-y-6">
+                        <div class="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2 no-scrollbar">
+                            ${['todo', 'tamaño', 'galga', 'lote'].map(m => `<button onclick="setSearchMode('${m}')" class="search-tab-btn ${mode === m ? 'active' : ''}">${m}</button>`).join('')}
+                        </div>
+                        <div class="relative"><i data-lucide="search" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i><input oninput="window.state.searchQuery = this.value; render()" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white shadow-sm border border-slate-100" placeholder="Buscar..."></div>
+                        <div class="space-y-3">
+                            ${filtered.map(i => `
+                                <div class="bg-white p-5 rounded-[2.5rem] flex justify-between items-center shadow-sm border border-slate-50">
+                                    <div class="flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center font-black text-xs text-green-600">${i.location}</div><div><p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}x${i.gauge}</p><p class="text-[10px] font-bold text-slate-400 italic uppercase">LOTE: ${i.batch} • ${i.weight}kg</p></div></div>
+                                    <button onclick="deleteItem('${i.id}')" class="text-slate-200 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                                 </div>
-                                <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-xl text-center">
-                                    <p className="text-2xl font-black text-green-400">{inventory.reduce((a,b) => a + Number(b.weight || 0), 0).toLocaleString()} <span className="text-xs">kg</span></p>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Stock Total</p>
-                                </div>
-                            </div>
-                            <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-                                <h3 className="text-[10px] font-black text-slate-300 uppercase italic mb-4 tracking-widest">Últimos Movimientos</h3>
-                                {inventory.length === 0 ? (
-                                    <p className="text-center py-4 text-xs font-bold text-slate-300 uppercase italic">Sin datos registrados</p>
-                                ) : (
-                                    inventory.slice(0, 4).map(item => (
-                                        <div key={item.id} className="flex justify-between border-b border-slate-50 py-3 last:border-0">
-                                            <span className="text-xs font-bold uppercase text-slate-600">{item.material} {item.size}mm</span>
-                                            <span className="text-xs font-black text-green-600 uppercase tracking-tighter">CALLE {item.location}</span>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                            `).join('')}
                         </div>
-                    )}
+                    </div>
+                `;
+            }
+        };
 
-                    {view === 'entry' && (
-                        <form onSubmit={saveEntry} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 space-y-3">
-                            <div className="space-y-1">
-                                <label className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Especificaciones</label>
-                                <input name="material" placeholder="MATERIAL (PE, PP...)" required className="w-full bg-slate-50 p-4 rounded-2xl font-bold uppercase outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all" />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input name="size" placeholder="ANCHO (mm)" type="number" required className="w-full bg-slate-50 p-4 rounded-2xl font-bold outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all" />
-                                    <input name="gauge" placeholder="GALGA" type="number" required className="w-full bg-slate-50 p-4 rounded-2xl font-bold outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all" />
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Logística</label>
-                                <input name="batch" placeholder="Nº DE LOTE" required className="w-full bg-slate-50 p-4 rounded-2xl font-bold uppercase outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all" />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input name="weight" placeholder="PESO (kg)" type="number" step="0.1" required className="w-full bg-slate-50 p-4 rounded-2xl font-bold outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all" />
-                                    <input name="location" placeholder="CALLE" required className="w-full bg-slate-50 p-4 rounded-2xl font-black uppercase text-green-600 outline-none focus:bg-white focus:ring-2 ring-green-100 transition-all" />
-                                </div>
-                            </div>
-                            <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-3xl font-black uppercase italic shadow-xl mt-4 active:scale-95 transition-all">Registrar Bobina</button>
-                        </form>
-                    )}
+        let html5QrCode;
+        window.startScanner = () => {
+            const readerEl = document.getElementById('reader');
+            if (window.state.isScanning) { stopScanner(); return; }
 
-                    {view === 'search' && (
-                        <div className="space-y-4">
-                            <div className="relative">
-                                <input onChange={e => setSearchQuery(e.target.value)} className="w-full bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 font-bold uppercase outline-none focus:ring-2 ring-indigo-100 pl-14" placeholder="Lote, material, calle..." />
-                                <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300"><Icon name="search" size={20} /></div>
-                            </div>
-                            <div className="space-y-3">
-                                {filteredInventory.length === 0 ? (
-                                    <p className="text-center py-8 text-xs font-bold text-slate-300 uppercase">No hay resultados</p>
-                                ) : (
-                                    filteredInventory.map(i => (
-                                        <div key={i.id} className="bg-white p-4 rounded-[1.5rem] flex justify-between items-center shadow-sm border border-slate-100">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center font-black text-xs text-green-600 border border-green-100">{i.location}</div>
-                                                <div>
-                                                    <p className="font-black text-[13px] uppercase leading-none">{i.material} {i.size}x{i.gauge}</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 italic">Lote: {i.batch} • {i.weight}kg</p>
-                                                </div>
-                                            </div>
-                                            <button onClick={() => deleteItem(i.id)} className="w-10 h-10 flex items-center justify-center text-slate-200 hover:text-red-500 active:bg-red-50 rounded-full transition-colors"><Icon name="trash-2" size={18}/></button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    )}
+            window.state.isScanning = true;
+            readerEl.style.display = 'block';
+            window.showNotify("CÁMARA ACTIVADA", "success");
 
-                    {notification && (
-                        <div className="fixed top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full font-black text-[10px] uppercase tracking-widest shadow-2xl z-50 animate-bounce">
-                            {notification}
-                        </div>
-                    )}
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    document.getElementById('fScanCode').value = decodedText.toUpperCase();
+                    window.showNotify("CÓDIGO ESCANEADO", "success");
+                    stopScanner();
+                },
+                (err) => {}
+            ).catch(() => {
+                window.showNotify("ERROR CÁMARA", "error");
+                readerEl.style.display = 'none';
+                window.state.isScanning = false;
+            });
+        };
 
-                    <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-[400px] z-40">
-                        <div className="bg-white/90 backdrop-blur-xl h-20 rounded-[2.5rem] shadow-2xl border border-white/50 flex justify-around items-center px-6">
-                            <button onClick={() => setView('dashboard')} className={view === 'dashboard' ? 'text-indigo-600 scale-110' : 'text-slate-300'}>
-                                <Icon name="layout-grid" size={26} />
-                            </button>
-                            <button onClick={() => setView('entry')} className="bg-slate-900 w-16 h-16 rounded-[2rem] flex items-center justify-center text-white shadow-xl -mt-12 border-4 border-slate-50 active:scale-90 transition-all">
-                                <Icon name="plus" size={30}/>
-                            </button>
-                            <button onClick={() => setView('search')} className={view === 'search' ? 'text-indigo-600 scale-110' : 'text-slate-300'}>
-                                <Icon name="search" size={26} />
-                            </button>
-                        </div>
-                    </nav>
-                </div>
-            );
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    const el = document.getElementById('reader');
+                    if(el) el.style.display = 'none';
+                    window.state.isScanning = false;
+                    render();
+                }).catch(() => {
+                    const el = document.getElementById('reader');
+                    if(el) el.style.display = 'none';
+                    window.state.isScanning = false;
+                    render();
+                });
+            }
         }
 
-        // Renderizado con comprobación de seguridad
-        try {
-            const container = document.getElementById('root');
-            const root = ReactDOM.createRoot(container);
-            root.render(<App />);
-        } catch (e) {
-            document.body.innerHTML = `<div style="padding:20px; font-family:sans-serif;">Error al cargar React: ${e.message}</div>`;
+        window.doLogin = () => {
+            const uInput = document.getElementById('lUser');
+            const pInput = document.getElementById('lPass');
+            if (!uInput || !pInput) return;
+
+            const u = uInput.value.trim().toLowerCase();
+            const p = pInput.value;
+            
+            if (u === 'admin' && p === 'master2024') {
+                window.state.user = { name: 'ADMIN', role: 'admin' };
+            } else {
+                const authorized = window.state.authorizedUsers.find(au => au.name.toLowerCase() === u);
+                if (authorized && p === '1234') {
+                    window.state.user = { name: authorized.name, role: 'operario' };
+                } else {
+                    window.showNotify("DATOS INCORRECTOS", "error");
+                    return;
+                }
+            }
+            localStorage.setItem('embasana_user', JSON.stringify(window.state.user));
+            window.state.view = 'dashboard'; 
+            render();
+        };
+
+        window.addUser = async () => {
+            const name = document.getElementById('newUserName').value.trim().toUpperCase();
+            if(!name) return;
+            try {
+                await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), { name, createdAt: Date.now() });
+                document.getElementById('newUserName').value = '';
+                window.showNotify("USUARIO AÑADIDO", "success");
+            } catch (e) { window.showNotify("ERROR AL GUARDAR"); }
+        };
+
+        window.removeUser = async (id) => {
+            if(confirm("¿ELIMINAR ACCESO?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users', id));
+                } catch (e) { window.showNotify("ERROR AL ELIMINAR"); }
+            }
+        };
+
+        window.saveEntry = async () => {
+            const data = {
+                size: document.getElementById('fSize').value.toUpperCase(),
+                material: document.getElementById('fMat').value.toUpperCase(),
+                location: document.getElementById('fLoc').value.toUpperCase(),
+                weight: document.getElementById('fWeight').value,
+                batch: document.getElementById('fBatch').value.toUpperCase(),
+                gauge: document.getElementById('fGauge').value,
+                color: document.getElementById('fColor').value.toUpperCase(),
+                finish: document.getElementById('fFinish').value.toUpperCase(),
+                scanCode: document.getElementById('fScanCode').value.toUpperCase(),
+                createdAt: Date.now()
+            };
+            if(!data.batch || !data.location) return window.showNotify("FALTA LOTE O CALLE", "error");
+            try {
+                await addDoc(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), data);
+                window.showNotify("REGISTRO EXITOSO", "success");
+                window.state.view = 'dashboard';
+                render();
+            } catch (e) { window.showNotify("ERROR AL GUARDAR"); }
+        };
+
+        window.deleteItem = async (id) => {
+            if(confirm("¿ELIMINAR ESTE REGISTRO?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'inventory', id));
+                } catch (e) { window.showNotify("ERROR AL ELIMINAR"); }
+            }
+        };
+
+        window.setView = (v) => { if(window.state.isScanning) stopScanner(); window.state.view = v; render(); };
+        window.logout = () => { localStorage.removeItem('embasana_user'); window.state.user = null; window.state.view = 'login'; render(); };
+        window.setSearchMode = (m) => { window.state.searchMode = m; render(); };
+
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'loginBtn') window.doLogin();
+        });
+
+        async function startApp() {
+            try {
+                await signInAnonymously(auth);
+                
+                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'inventory'), (snap) => {
+                    window.state.inventory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt);
+                    render();
+                }, (err) => console.error("Error inventario:", err));
+
+                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'authorized_users'), (snap) => {
+                    window.state.authorizedUsers = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
+                    render();
+                }, (err) => console.error("Error usuarios:", err));
+
+            } catch(e) { 
+                console.error("Error de inicio:", e);
+                window.showNotify("ERROR DE CONEXIÓN");
+                render();
+            }
         }
+
+        window.onload = startApp;
+        window.logout = logout;
+        window.setView = setView;
+        window.addUser = addUser;
+        window.removeUser = removeUser;
+        window.saveEntry = saveEntry;
+        window.deleteItem = deleteItem;
+        window.setSearchMode = setSearchMode;
     </script>
 </body>
 </html>
