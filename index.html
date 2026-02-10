@@ -114,6 +114,27 @@
             position: relative;
         }
 
+        /* ESTILO DE LOS BOTONES DE BUSQUEDA CORREGIDO */
+        .search-tab-btn {
+            background: #f8fafc;
+            padding: 0.8rem 1.2rem;
+            border-radius: 1rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #94a3b8;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: inline-block;
+        }
+
+        .search-tab-btn.active {
+            border-color: #22c55e;
+            color: #22c55e;
+            background: #f0fdf4;
+        }
+
         #notification {
             position: fixed;
             top: 20px;
@@ -163,6 +184,8 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             margin-bottom: 1.5rem;
         }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
@@ -196,7 +219,6 @@
             searchQuery: '',
             searchMode: 'todo',
             isScanning: false,
-            // Estado temporal para los campos del formulario cuando se escanea
             tempFormData: { scanCode: '', size: '', gauge: '', material: '', finish: '', color: '' }
         };
 
@@ -356,10 +378,17 @@
 
                 return `
                     <div class="space-y-6">
-                        <div class="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2 no-scrollbar">
-                            ${['todo', 'tamaño', 'galga', 'lote'].map(m => `<button onclick="setSearchMode('${m}')" class="search-tab-btn ${mode === m ? 'active' : ''}">${m}</button>`).join('')}
+                        <div class="flex gap-2 overflow-x-auto pb-4 no-scrollbar px-1">
+                            ${['todo', 'tamaño', 'galga', 'lote'].map(m => `
+                                <button onclick="setSearchMode('${m}')" class="search-tab-btn ${mode === m ? 'active' : ''}">
+                                    ${m}
+                                </button>
+                            `).join('')}
                         </div>
-                        <div class="relative"><i data-lucide="search" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i><input oninput="window.state.searchQuery = this.value; render()" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white shadow-sm border border-slate-100" placeholder="Buscar..."></div>
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
+                            <input oninput="window.state.searchQuery = this.value; render()" value="${window.state.searchQuery}" class="input-box !pl-14 !bg-white shadow-sm border border-slate-100" placeholder="Buscar...">
+                        </div>
                         <div class="space-y-3">
                             ${filtered.map(i => `
                                 <div class="bg-white p-5 rounded-[2.5rem] flex justify-between items-center shadow-sm border border-slate-50">
@@ -373,26 +402,17 @@
             }
         };
 
-        // LÓGICA DE ESCANEO CORREGIDA
         let html5QrCode;
         window.startScanner = () => {
             const readerEl = document.getElementById('reader');
             if (window.state.isScanning) { stopScanner(); return; }
-
             window.state.isScanning = true;
             readerEl.style.display = 'block';
-            
             html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decodedText) => {
-                    const code = decodedText.trim().toUpperCase();
-                    handleSearchAndFill(code);
-                    stopScanner();
-                },
-                (err) => {}
-            ).catch(() => {
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
+                handleSearchAndFill(decodedText.trim().toUpperCase());
+                stopScanner();
+            }, (err) => {}).catch(() => {
                 window.showNotify("ERROR CÁMARA");
                 readerEl.style.display = 'none';
                 window.state.isScanning = false;
@@ -415,12 +435,11 @@
 
         window.handleManualCode = (val) => {
             const code = val.trim().toUpperCase();
-            handleSearchAndFill(code, false); // false para no renderizar en bucle infinito si se llama desde el input
+            handleSearchAndFill(code, false);
         };
 
         function handleSearchAndFill(code, shouldRender = true) {
             const existing = window.state.inventory.find(i => i.scanCode === code);
-            
             window.state.tempFormData = {
                 scanCode: code,
                 size: existing ? existing.size : '',
@@ -429,7 +448,6 @@
                 finish: existing ? existing.finish : '',
                 color: existing ? existing.color : ''
             };
-
             if (existing) window.showNotify("DATOS CARGADOS", "success");
             if (shouldRender) render();
         }
@@ -522,6 +540,13 @@
         }
 
         window.onload = startApp;
+        window.logout = logout;
+        window.setView = setView;
+        window.addUser = addUser;
+        window.removeUser = removeUser;
+        window.saveEntry = saveEntry;
+        window.deleteItem = deleteItem;
+        window.setSearchMode = setSearchMode;
     </script>
 </body>
 </html>
