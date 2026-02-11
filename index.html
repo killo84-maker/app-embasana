@@ -17,7 +17,7 @@
         .plus-btn { width: 65px; height: 65px; background: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; margin-bottom: 40px; border: 5px solid #f8fafc; box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3); }
         #notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 12px 24px; border-radius: 12px; color: white; font-weight: 800; display: none; text-transform: uppercase; font-size: 0.7rem; }
         .card { background: white; border-radius: 2rem; padding: 1.5rem; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        #reader { width: 100%; border-radius: 1.5rem; overflow: hidden; display: none; border: 4px solid #22c55e; margin-bottom: 1rem; }
+        #reader { width: 100%; border-radius: 1.5rem; overflow: hidden; border: 2px solid #22c55e; margin-bottom: 1rem; background: #000; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .section-title { font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; margin-left: 8px; border-left: 3px solid #22c55e; padding-left: 8px; }
     </style>
@@ -91,7 +91,7 @@
         }
 
         window.setView = (v) => {
-            if (window.html5QrCode && window.state.isScanning) stopScanner();
+            if (window.state.isScanning) stopScanner();
             window.state.view = v;
             render();
         };
@@ -126,41 +126,65 @@
 
         window.html5QrCode = null;
         window.toggleScanner = async () => {
-            const reader = document.getElementById('reader');
             if (window.state.isScanning) {
                 stopScanner();
             } else {
-                reader.style.display = 'block';
                 window.state.isScanning = true;
-                window.html5QrCode = new Html5Qrcode("reader");
-                try {
-                    await window.html5QrCode.start(
-                        { facingMode: "environment" },
-                        { fps: 10, qrbox: 250 },
-                        (text) => {
-                            const codeInput = document.getElementById('fScanCode');
-                            if(codeInput) codeInput.value = text;
-                            showNotify("CAPTURADO", true);
-                            stopScanner();
-                        }
-                    );
-                    render();
-                } catch (e) { showNotify("ERROR CÁMARA"); stopScanner(); }
+                render(); 
+                
+                setTimeout(async () => {
+                    const readerElement = document.getElementById('reader');
+                    if (!readerElement) return;
+                    
+                    window.html5QrCode = new Html5Qrcode("reader");
+                    try {
+                        await window.html5QrCode.start(
+                            { facingMode: "environment" },
+                            { fps: 10, qrbox: { width: 250, height: 150 } },
+                            (text) => {
+                                const codeInput = document.getElementById('fScanCode');
+                                if(codeInput) codeInput.value = text;
+                                showNotify("CAPTURADO", true);
+                                stopScanner();
+                            }
+                        );
+                    } catch (e) { 
+                        showNotify("ERROR CÁMARA"); 
+                        window.state.isScanning = false;
+                        render();
+                    }
+                }, 100);
             }
         };
 
         const stopScanner = () => {
             if (window.html5QrCode) {
                 window.html5QrCode.stop().then(() => {
-                    const r = document.getElementById('reader');
-                    if(r) r.style.display = 'none';
+                    window.html5QrCode = null;
                     window.state.isScanning = false;
                     render();
                 }).catch(() => {
                     window.state.isScanning = false;
                     render();
                 });
+            } else {
+                window.state.isScanning = false;
+                render();
             }
+        };
+
+        window.deleteItem = async (id) => {
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
+                showNotify("BORRADO", true);
+            } catch (e) { showNotify("ERROR AL BORRAR"); }
+        };
+
+        window.deleteUser = async (id) => {
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authorized_users', id));
+                showNotify("USUARIO ELIMINADO", true);
+            } catch (e) { showNotify("ERROR AL BORRAR USUARIO"); }
         };
 
         const render = () => {
@@ -233,58 +257,58 @@
                 return `
                 <form onsubmit="saveItem(event)" class="card space-y-4">
                     <div class="flex flex-col items-center pt-2">
-                        <div id="reader"></div>
-                        <button type="button" onclick="toggleScanner()" class="w-14 h-14 bg-green-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
-                            <i data-lucide="scan" size="28"></i>
+                        ${window.state.isScanning ? '<div id="reader"></div>' : ''}
+                        <button type="button" onclick="toggleScanner()" class="w-14 h-14 ${window.state.isScanning ? 'bg-red-500' : 'bg-green-500'} text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                            <i data-lucide="${window.state.isScanning ? 'x' : 'scan'}" size="28"></i>
                         </button>
-                        <p class="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-widest italic">ESCANEAR CÓDIGO</p>
+                        <p class="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-widest italic">${window.state.isScanning ? 'Cerrar Cámara' : 'Escanear Código'}</p>
                     </div>
                     
                     <div class="space-y-1">
                         <label class="text-[9px] font-black text-slate-400 ml-2 uppercase italic">ID BOBINA</label>
-                        <input id="fScanCode" name="scanCode" class="input-box uppercase border-dashed bg-slate-50" placeholder="---" required>
+                        <input id="fScanCode" name="scanCode" class="input-box uppercase border-dashed bg-slate-50" placeholder="" required>
                     </div>
 
                     <div class="pt-2">
-                        <p class="section-title">Datos de Ficha (Solo Primera Vez)</p>
+                        <p class="section-title">Datos de Ficha</p>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Tamaño (mm)</label>
-                                <input name="size" class="input-box uppercase" placeholder="Ej: 500">
+                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Tamaño</label>
+                                <input name="size" class="input-box uppercase">
                             </div>
                             <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Galga (μm)</label>
-                                <input name="gauge" type="number" class="input-box" placeholder="Ej: 30">
+                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Galga</label>
+                                <input name="gauge" type="number" class="input-box">
                             </div>
                             <div class="space-y-1">
                                 <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Material</label>
-                                <input name="material" class="input-box uppercase" placeholder="PEBD">
+                                <input name="material" class="input-box uppercase">
                             </div>
                             <div class="space-y-1">
                                 <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Acabado</label>
-                                <input name="finish" class="input-box uppercase" placeholder="MATE/BRILLO">
+                                <input name="finish" class="input-box uppercase">
                             </div>
                             <div class="col-span-2 space-y-1">
                                 <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Color</label>
-                                <input name="color" class="input-box uppercase" placeholder="BLANCO / TRANSPARENTE">
+                                <input name="color" class="input-box uppercase">
                             </div>
                         </div>
                     </div>
                     
                     <div class="pt-2">
-                        <p class="section-title">Datos de Registro (Siempre)</p>
+                        <p class="section-title">Datos de Registro</p>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="space-y-1">
                                 <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">Nº LOTE</label>
                                 <input name="batch" class="input-box uppercase border-green-100" required>
                             </div>
                             <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">PESO (kg)</label>
+                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">PESO</label>
                                 <input name="weight" type="number" step="0.01" class="input-box border-green-100" required>
                             </div>
                             <div class="col-span-2 space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic text-green-600">CALLE / UBICACIÓN</label>
-                                <input name="location" class="input-box uppercase text-green-600 border-green-200" required placeholder="CALLE A-1">
+                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic text-green-600">CALLE</label>
+                                <input name="location" class="input-box uppercase text-green-600 border-green-200" required>
                             </div>
                         </div>
                     </div>
@@ -312,7 +336,7 @@
 
                     <div class="relative">
                         <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size="18"></i>
-                        <input oninput="window.state.searchQuery = this.value; render();" class="input-box pl-12 uppercase" placeholder="Buscar por ${window.state.searchMode}..." value="${window.state.searchQuery}">
+                        <input oninput="window.state.searchQuery = this.value; render();" class="input-box pl-12 uppercase" placeholder="BUSCAR..." value="${window.state.searchQuery}">
                     </div>
 
                     <div class="space-y-3">
@@ -322,10 +346,10 @@
                                     <div class="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center font-black text-green-600 text-xs border border-slate-100">${i.location}</div>
                                     <div>
                                         <p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}</p>
-                                        <p class="text-[9px] text-slate-400 font-bold uppercase italic">LOTE: ${i.batch} • ${i.weight}kg • ${i.color || 'S/C'}</p>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase italic">LOTE: ${i.batch} • ${i.weight}kg • ${i.color || ''}</p>
                                     </div>
                                 </div>
-                                <button onclick="deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', '${i.id}'))" class="text-slate-200 hover:text-red-500 transition-colors p-2"><i data-lucide="trash-2" size="18"></i></button>
+                                <button onclick="deleteItem('${i.id}')" class="text-slate-200 hover:text-red-500 transition-colors p-2"><i data-lucide="trash-2" size="18"></i></button>
                             </div>
                         `).join('')}
                     </div>
@@ -344,7 +368,13 @@
                     <div class="card">
                         <h3 class="text-center font-black italic text-[10px] mb-4 text-slate-300 uppercase tracking-widest">Plantilla Activa</h3>
                         <div class="space-y-2">
-                            ${window.state.users.map(u => `<div class="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100"><span class="font-black text-xs uppercase text-slate-700">${u.name}</span><button onclick="deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authorized_users', '${u.id}'))" class="text-slate-200 hover:text-red-500 transition-colors"><i data-lucide="trash-2" size="16"></i></button></div>`).join('')}
+                            ${window.state.users.map(u => `
+                                <div class="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                    <span class="font-black text-xs uppercase text-slate-700">${u.name}</span>
+                                    <button onclick="deleteUser('${u.id}')" class="text-slate-300 hover:text-red-500 transition-colors">
+                                        <i data-lucide="trash-2" size="18"></i>
+                                    </button>
+                                </div>`).join('')}
                         </div>
                     </div>
                 </div>`;
