@@ -13,19 +13,21 @@
         .input-box { width: 100%; background: #fff; border-radius: 1rem; padding: 0.8rem; border: 1px solid #e2e8f0; font-weight: 700; transition: all 0.2s; outline: none; font-size: 0.85rem; }
         .input-box:focus { border-color: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1); }
         .btn-main { background: #0f172a; color: white; padding: 1.2rem; border-radius: 1.2rem; font-weight: 900; text-transform: uppercase; font-style: italic; width: 100%; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-green { background: #22c55e; color: white; padding: 1rem; border-radius: 1rem; font-weight: 800; text-transform: uppercase; width: 100%; }
         .nav-bar { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: white; height: 75px; border-radius: 40px; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 15px 30px rgba(0,0,0,0.1); z-index: 100; border: 1px solid #f1f5f9; }
         .plus-btn { width: 65px; height: 65px; background: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; margin-bottom: 40px; border: 5px solid #f8fafc; box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3); }
         #notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 12px 24px; border-radius: 12px; color: white; font-weight: 800; display: none; text-transform: uppercase; font-size: 0.7rem; }
         .card { background: white; border-radius: 2rem; padding: 1.5rem; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        #reader { width: 100%; border-radius: 1.5rem; overflow: hidden; border: 2px solid #22c55e; margin-bottom: 1rem; background: #000; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .section-title { font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; margin-left: 8px; border-left: 3px solid #22c55e; padding-left: 8px; }
+        #reader { width: 100%; border-radius: 1.5rem; overflow: hidden; border: 2px solid #22c55e; margin-bottom: 1rem; background: #000; min-height: 200px; }
+        .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); z-index: 200; display: none; padding: 1rem; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .section-title { font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; border-left: 3px solid #22c55e; padding-left: 8px; }
     </style>
 </head>
 <body>
 
     <div id="notification"></div>
     <div id="root"></div>
+    <div id="modal" class="modal" onclick="closeModal(event)"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
@@ -50,9 +52,10 @@
             user: JSON.parse(localStorage.getItem('embasana_session')) || null,
             inventory: [],
             users: [],
-            searchQuery: '',
-            searchMode: 'todo',
-            isScanning: false
+            isScanning: false,
+            searchFilters: { size: '', gauge: '', color: '', batch: '' },
+            filteredResults: null,
+            selectedItem: null
         };
 
         window.showNotify = (msg, success = false) => {
@@ -68,13 +71,11 @@
             e.preventDefault();
             const userInput = document.getElementById('lUser').value.trim().toUpperCase();
             const pinInput = document.getElementById('lPin').value;
-
             if (userInput === 'ADMIN' && pinInput === 'master2024') {
                 window.state.user = { name: 'ADMIN', role: 'admin' };
                 saveAndGo();
                 return;
             }
-
             const found = window.state.users.find(u => u.name.toUpperCase() === userInput);
             if (found && pinInput === '1234') {
                 window.state.user = { name: found.name, role: 'user' };
@@ -93,11 +94,7 @@
         window.setView = (v) => {
             if (window.state.isScanning) stopScanner();
             window.state.view = v;
-            render();
-        };
-
-        window.setSearchMode = (mode) => {
-            window.state.searchMode = mode;
+            window.state.filteredResults = null;
             render();
         };
 
@@ -131,11 +128,9 @@
             } else {
                 window.state.isScanning = true;
                 render(); 
-                
                 setTimeout(async () => {
                     const readerElement = document.getElementById('reader');
                     if (!readerElement) return;
-                    
                     window.html5QrCode = new Html5Qrcode("reader");
                     try {
                         await window.html5QrCode.start(
@@ -173,6 +168,57 @@
             }
         };
 
+        window.searchInventory = () => {
+            const f = window.state.searchFilters;
+            const results = window.state.inventory.filter(i => {
+                const matchSize = !f.size || (i.size || "").toLowerCase().includes(f.size.toLowerCase());
+                const matchGauge = !f.gauge || (i.gauge || "").toString().includes(f.gauge);
+                const matchColor = !f.color || (i.color || "").toLowerCase().includes(f.color.toLowerCase());
+                const matchBatch = !f.batch || (i.batch || "").toLowerCase().includes(f.batch.toLowerCase());
+                return matchSize && matchGauge && matchColor && matchBatch;
+            });
+            window.state.filteredResults = results;
+            if (results.length === 0) showNotify("SIN COINCIDENCIAS");
+            render();
+        };
+
+        window.openDetails = (item) => {
+            window.state.selectedItem = item;
+            const modal = document.getElementById('modal');
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="card w-full max-w-sm relative animate-in fade-in zoom-in duration-200" onclick="event.stopPropagation()">
+                    <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-300"><i data-lucide="x"></i></button>
+                    <h2 class="text-xl font-black italic mb-4 uppercase text-slate-900 border-b pb-2">Ficha de Bobina</h2>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><p class="text-[9px] font-bold text-slate-400 uppercase">Material</p><p class="font-black text-slate-800">${item.material || '---'}</p></div>
+                            <div><p class="text-[9px] font-bold text-slate-400 uppercase">ID Bobina</p><p class="font-black text-slate-800">${item.scanCode || '---'}</p></div>
+                            <div><p class="text-[9px] font-bold text-slate-400 uppercase">Tamaño</p><p class="font-black text-slate-800">${item.size} mm</p></div>
+                            <div><p class="text-[9px] font-bold text-slate-400 uppercase">Galga</p><p class="font-black text-slate-800">${item.gauge} μm</p></div>
+                            <div><p class="text-[9px] font-bold text-slate-400 uppercase">Color</p><p class="font-black text-slate-800">${item.color || '---'}</p></div>
+                            <div><p class="text-[9px] font-bold text-slate-400 uppercase">Acabado</p><p class="font-black text-slate-800">${item.finish || '---'}</p></div>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><p class="text-[9px] font-bold text-slate-400 uppercase">Lote</p><p class="font-black text-green-600">${item.batch}</p></div>
+                                <div><p class="text-[9px] font-bold text-slate-400 uppercase">Peso</p><p class="font-black text-green-600">${item.weight} kg</p></div>
+                            </div>
+                            <div class="mt-3"><p class="text-[9px] font-bold text-slate-400 uppercase">Ubicación</p><p class="font-black text-green-600 text-lg">CALLE ${item.location}</p></div>
+                        </div>
+                        <div class="flex gap-2">
+                             <button onclick="deleteItem('${item.id}'); closeModal();" class="flex-1 bg-red-50 text-red-500 font-bold py-3 rounded-xl uppercase text-[10px] flex items-center justify-center gap-2"><i data-lucide="trash-2" size="14"></i> Borrar Registro</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        };
+
+        window.closeModal = (e) => {
+            document.getElementById('modal').style.display = 'none';
+        };
+
         window.deleteItem = async (id) => {
             try {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
@@ -183,8 +229,8 @@
         window.deleteUser = async (id) => {
             try {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authorized_users', id));
-                showNotify("USUARIO ELIMINADO", true);
-            } catch (e) { showNotify("ERROR AL BORRAR USUARIO"); }
+                showNotify("ELIMINADO", true);
+            } catch (e) { showNotify("ERROR AL BORRAR"); }
         };
 
         const render = () => {
@@ -234,18 +280,15 @@
                     <div class="card bg-slate-900 text-white"><p class="text-2xl font-black text-green-400">${totalKg.toLocaleString()}kg</p><p class="text-[10px] font-bold text-slate-500 uppercase mt-1">Peso Total</p></div>
                 </div>
                 ${window.state.user.role === 'admin' ? `
-                <div onclick="setView('maestro')" class="card bg-indigo-600 text-white mb-6 flex justify-between items-center cursor-pointer shadow-lg active:scale-95 transition-transform p-5">
-                    <div>
-                        <p class="font-black italic text-lg">PERSONAL</p>
-                        <p class="text-[9px] font-bold opacity-70 uppercase tracking-widest">Gestión de Acceso</p>
-                    </div>
+                <div onclick="setView('maestro')" class="card bg-indigo-600 text-white mb-6 flex justify-between items-center cursor-pointer p-5">
+                    <div><p class="font-black italic text-lg uppercase">Personal</p><p class="text-[9px] font-bold opacity-70 uppercase tracking-widest">Gestión de Acceso</p></div>
                     <i data-lucide="shield-check"></i>
                 </div>` : ''}
                 <div class="card">
-                    <h3 class="text-[10px] font-black text-slate-300 uppercase mb-4 tracking-widest italic">Movimientos Recientes</h3>
+                    <h3 class="section-title">Movimientos Recientes</h3>
                     <div class="space-y-4">
                         ${window.state.inventory.slice(0,5).map(i => `
-                            <div class="flex justify-between items-center border-b border-slate-50 pb-2">
+                            <div onclick='openDetails(${JSON.stringify(i)})' class="flex justify-between items-center border-b border-slate-50 pb-2 cursor-pointer active:opacity-50">
                                 <div><p class="text-xs font-black uppercase text-slate-700">${i.material} ${i.size}</p><p class="text-[9px] text-slate-400 uppercase font-bold italic">LOTE: ${i.batch}</p></div>
                                 <div class="text-right"><p class="text-xs font-black">${i.weight}kg</p><p class="text-[9px] text-green-500 font-bold uppercase">Calle ${i.location}</p></div>
                             </div>
@@ -265,93 +308,60 @@
                     </div>
                     
                     <div class="space-y-1">
-                        <label class="text-[9px] font-black text-slate-400 ml-2 uppercase italic">ID BOBINA</label>
-                        <input id="fScanCode" name="scanCode" class="input-box uppercase border-dashed bg-slate-50" placeholder="" required>
+                        <label class="text-[9px] font-black text-slate-400 ml-2 uppercase italic">ID Bobina</label>
+                        <input id="fScanCode" name="scanCode" class="input-box uppercase border-dashed bg-slate-50" required>
                     </div>
 
                     <div class="pt-2">
                         <p class="section-title">Datos de Ficha</p>
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Tamaño</label>
-                                <input name="size" class="input-box uppercase">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Galga</label>
-                                <input name="gauge" type="number" class="input-box">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Material</label>
-                                <input name="material" class="input-box uppercase">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Acabado</label>
-                                <input name="finish" class="input-box uppercase">
-                            </div>
-                            <div class="col-span-2 space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Color</label>
-                                <input name="color" class="input-box uppercase">
-                            </div>
+                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Tamaño</label><input name="size" class="input-box uppercase"></div>
+                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Galga</label><input name="gauge" type="number" class="input-box"></div>
+                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Material</label><input name="material" class="input-box uppercase"></div>
+                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Acabado</label><input name="finish" class="input-box uppercase"></div>
+                            <div class="col-span-2 space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Color</label><input name="color" class="input-box uppercase"></div>
                         </div>
                     </div>
                     
                     <div class="pt-2">
                         <p class="section-title">Datos de Registro</p>
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">Nº LOTE</label>
-                                <input name="batch" class="input-box uppercase border-green-100" required>
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">PESO</label>
-                                <input name="weight" type="number" step="0.01" class="input-box border-green-100" required>
-                            </div>
-                            <div class="col-span-2 space-y-1">
-                                <label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic text-green-600">CALLE</label>
-                                <input name="location" class="input-box uppercase text-green-600 border-green-200" required>
-                            </div>
+                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">Nº Lote</label><input name="batch" class="input-box uppercase border-green-100" required></div>
+                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">Peso</label><input name="weight" type="number" step="0.01" class="input-box border-green-100" required></div>
+                            <div class="col-span-2 space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic text-green-600">Calle</label><input name="location" class="input-box uppercase text-green-600 border-green-200" required></div>
                         </div>
                     </div>
-                    
                     <button type="submit" class="btn-main mt-4">Confirmar Registro</button>
                 </form>`;
             }
             if (window.state.view === 'buscar') {
-                const filtered = window.state.inventory.filter(i => {
-                    const q = window.state.searchQuery.toLowerCase();
-                    if (window.state.searchMode === 'tamaño') return (i.size || "").toLowerCase().includes(q);
-                    if (window.state.searchMode === 'galga') return (i.gauge || "").toString().includes(q);
-                    if (window.state.searchMode === 'lote') return (i.batch || "").toLowerCase().includes(q);
-                    return (i.batch || "").toLowerCase().includes(q) || (i.material || "").toLowerCase().includes(q) || (i.location || "").toLowerCase().includes(q);
-                });
+                const results = window.state.filteredResults;
                 return `
-                <div class="space-y-5">
-                    <div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                        ${['todo', 'tamaño', 'galga', 'lote'].map(m => `
-                            <button onclick="setSearchMode('${m}')" class="px-6 py-3 rounded-xl font-bold text-[10px] uppercase transition-all whitespace-nowrap border ${window.state.searchMode === m ? 'bg-green-500 text-white border-green-500 shadow-md' : 'bg-white text-slate-400 border-slate-100'}">
-                                ${m}
-                            </button>
-                        `).join('')}
+                <div class="space-y-4">
+                    <div class="card space-y-3">
+                        <h3 class="section-title">Filtros de Búsqueda</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <input class="input-box uppercase" placeholder="Tamaño" value="${window.state.searchFilters.size}" oninput="window.state.searchFilters.size=this.value">
+                            <input class="input-box uppercase" placeholder="Galga" value="${window.state.searchFilters.gauge}" oninput="window.state.searchFilters.gauge=this.value">
+                            <input class="input-box uppercase" placeholder="Color" value="${window.state.searchFilters.color}" oninput="window.state.searchFilters.color=this.value">
+                            <input class="input-box uppercase" placeholder="Nº Lote" value="${window.state.searchFilters.batch}" oninput="window.state.searchFilters.batch=this.value">
+                        </div>
+                        <button onclick="searchInventory()" class="btn-green mt-2 flex items-center justify-center gap-2"><i data-lucide="search" size="18"></i> Buscar</button>
                     </div>
 
-                    <div class="relative">
-                        <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size="18"></i>
-                        <input oninput="window.state.searchQuery = this.value; render();" class="input-box pl-12 uppercase" placeholder="BUSCAR..." value="${window.state.searchQuery}">
-                    </div>
-
-                    <div class="space-y-3">
-                        ${filtered.map(i => `
-                            <div class="card flex justify-between items-center py-4 p-5">
+                    <div class="space-y-2">
+                        ${results ? (results.length > 0 ? results.map(i => `
+                            <div onclick='openDetails(${JSON.stringify(i)})' class="card flex justify-between items-center py-4 p-5 cursor-pointer active:scale-[0.98] transition-transform">
                                 <div class="flex items-center gap-4">
                                     <div class="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center font-black text-green-600 text-xs border border-slate-100">${i.location}</div>
                                     <div>
                                         <p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}</p>
-                                        <p class="text-[9px] text-slate-400 font-bold uppercase italic">LOTE: ${i.batch} • ${i.weight}kg • ${i.color || ''}</p>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase italic">LOTE: ${i.batch} • ${i.weight}kg</p>
                                     </div>
                                 </div>
-                                <button onclick="deleteItem('${i.id}')" class="text-slate-200 hover:text-red-500 transition-colors p-2"><i data-lucide="trash-2" size="18"></i></button>
+                                <i data-lucide="chevron-right" class="text-slate-200"></i>
                             </div>
-                        `).join('')}
+                        `).join('') : '<div class="card p-10 text-center text-slate-300 font-bold uppercase text-xs tracking-widest italic">Sin coincidencias</div>') : ''}
                     </div>
                 </div>`;
             }
@@ -359,21 +369,19 @@
                 return `
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-center font-black italic text-[10px] mb-4 text-slate-300 uppercase tracking-widest">Registrar Trabajador</h3>
+                        <h3 class="section-title text-center border-none">Nuevo Trabajador</h3>
                         <div class="flex gap-2">
                             <input id="newUserName" class="input-box uppercase" placeholder="NOMBRE">
                             <button onclick="addUser()" class="bg-indigo-600 text-white p-4 rounded-xl shadow-lg active:scale-90 transition-transform"><i data-lucide="user-plus"></i></button>
                         </div>
                     </div>
                     <div class="card">
-                        <h3 class="text-center font-black italic text-[10px] mb-4 text-slate-300 uppercase tracking-widest">Plantilla Activa</h3>
+                        <h3 class="section-title text-center border-none">Usuarios Activos</h3>
                         <div class="space-y-2">
                             ${window.state.users.map(u => `
                                 <div class="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
                                     <span class="font-black text-xs uppercase text-slate-700">${u.name}</span>
-                                    <button onclick="deleteUser('${u.id}')" class="text-slate-300 hover:text-red-500 transition-colors">
-                                        <i data-lucide="trash-2" size="18"></i>
-                                    </button>
+                                    <button onclick="deleteUser('${u.id}')" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" size="18"></i></button>
                                 </div>`).join('')}
                         </div>
                     </div>
