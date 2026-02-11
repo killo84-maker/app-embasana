@@ -17,7 +17,7 @@
         .plus-btn { width: 65px; height: 65px; background: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; margin-bottom: 40px; border: 5px solid #f8fafc; box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3); }
         #notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 12px 24px; border-radius: 12px; color: white; font-weight: 800; display: none; text-transform: uppercase; font-size: 0.7rem; }
         .card { background: white; border-radius: 2rem; padding: 1.5rem; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        #reader { width: 100%; border-radius: 1.5rem; overflow: hidden; border: 2px solid #22c55e; margin-bottom: 1rem; background: #000; min-height: 250px; }
+        #reader { width: 100%; border-radius: 1.5rem; overflow: hidden; border: 2px solid #22c55e; margin-bottom: 1rem; background: #000; min-height: 250px; position: relative; z-index: 10; }
         .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); z-index: 200; display: none; padding: 1rem; align-items: center; justify-content: center; backdrop-filter: blur(4px); overflow-y: auto; }
         .section-title { font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; border-left: 3px solid #22c55e; padding-left: 8px; }
     </style>
@@ -115,14 +115,11 @@
             };
 
             try {
-                if (window.state.editingItem) {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', window.state.editingItem.id), data);
-                    showNotify("ACTUALIZADO", true);
-                } else {
-                    data.createdAt = Date.now();
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), data);
-                    showNotify("GUARDADO", true);
-                }
+                // Siempre creamos un nuevo registro para no sobreescribir el historial de ubicaciones anteriores
+                data.createdAt = Date.now();
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), data);
+                showNotify("GUARDADO", true);
+                
                 window.state.editingItem = null;
                 window.setView('dashboard');
             } catch (err) { showNotify("ERROR AL GUARDAR"); }
@@ -139,10 +136,15 @@
                     const readerElement = document.getElementById('reader');
                     if (!readerElement) return;
                     window.html5QrCode = new Html5Qrcode("reader");
+                    const config = { 
+                        fps: 30, // Más frames para detectar mejor
+                        qrbox: { width: 280, height: 160 },
+                        aspectRatio: 1.777778
+                    };
                     try {
                         await window.html5QrCode.start(
                             { facingMode: "environment" },
-                            { fps: 20, qrbox: { width: 250, height: 150 } },
+                            config,
                             (text) => {
                                 handleScanResult(text);
                                 stopScanner();
@@ -153,49 +155,59 @@
                         window.state.isScanning = false;
                         render();
                     }
-                }, 300);
+                }, 400); // Un pelín más de espera para que el DOM esté listo
             }
         };
 
         function handleScanResult(text) {
             const code = text.trim().toUpperCase();
             
-            // 1. Asegurar que estamos en la vista de entrada
             if (window.state.view !== 'entrada') {
                 window.state.view = 'entrada';
                 render();
             }
 
-            // 2. Buscar si ya existe para decidir si es Edición o Nuevo
-            const existing = window.state.inventory.find(i => i.scanCode === code);
+            // Buscar la última bobina registrada con ese código para copiar sus características técnicas
+            const existing = [...window.state.inventory]
+                .sort((a,b) => b.createdAt - a.createdAt)
+                .find(i => i.scanCode === code);
             
-            // Inyectar el código en el campo de forma persistente
             setTimeout(() => {
                 const input = document.getElementById('fScanCode');
-                if (input) {
-                    input.value = code;
-                    input.style.border = "2px solid #22c55e"; // Feedback visual de éxito
-                }
+                if (input) input.value = code;
 
                 if (existing) {
-                    showNotify("CAPTURA REALIZADA (EXISTENTE)", true);
-                    autoFillForm(existing);
+                    showNotify("BOBINA IDENTIFICADA", true);
+                    autoFillTechnicalFields(existing);
                 } else {
-                    showNotify("CAPTURA REALIZADA (NUEVA)", true);
-                    window.state.editingItem = null; // Es un registro nuevo
+                    showNotify("NUEVA BOBINA DETECTADA", true);
+                    window.state.editingItem = null;
                 }
             }, 100);
         }
 
-        function autoFillForm(item) {
+        function autoFillTechnicalFields(item) {
             const form = document.querySelector('form');
             if (!form) return;
-            const fields = ['size', 'gauge', 'material', 'finish', 'color', 'batch', 'weight', 'location'];
-            fields.forEach(f => {
+            
+            // Rellenamos solo lo que NO cambia (Ficha técnica)
+            const techFields = ['size', 'gauge', 'material', 'finish', 'color'];
+            techFields.forEach(f => {
                 const el = form.querySelector(`[name="${f}"]`);
                 if (el) el.value = item[f] || '';
             });
-            window.state.editingItem = item;
+
+            // VACIAR siempre los campos que se deben rellenar cada vez (Lote, Peso, Calle)
+            const variableFields = ['batch', 'weight', 'location'];
+            variableFields.forEach(f => {
+                const el = form.querySelector(`[name="${f}"]`);
+                if (el) {
+                    el.value = '';
+                    el.style.backgroundColor = '#f0fdf4'; // Un ligero toque verde para indicar que aquí debe escribir
+                }
+            });
+            
+            window.state.editingItem = null; // Tratamos como nuevo registro aunque usemos datos base
         }
 
         const stopScanner = () => {
@@ -252,22 +264,12 @@
                             <div class="mt-3"><p class="text-[9px] font-bold text-slate-400 uppercase">Ubicación</p><p class="font-black text-green-600 text-lg uppercase">Calle ${item.location}</p></div>
                         </div>
                         <div class="flex flex-col gap-2 pt-2">
-                             <button onclick="editFromDetails('${item.id}')" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl uppercase text-[10px] flex items-center justify-center gap-2 shadow-lg"><i data-lucide="edit-3" size="14"></i> Editar Registro</button>
                              <button onclick="deleteItem('${item.id}'); closeModal();" class="w-full bg-red-50 text-red-500 font-bold py-3 rounded-xl uppercase text-[10px] flex items-center justify-center gap-2"><i data-lucide="trash-2" size="14"></i> Eliminar</button>
                         </div>
                     </div>
                 </div>
             `;
             lucide.createIcons();
-        };
-
-        window.editFromDetails = (id) => {
-            const item = window.state.inventory.find(i => i.id === id);
-            window.state.editingItem = item;
-            window.state.view = 'entrada';
-            closeModal();
-            render();
-            setTimeout(() => autoFillForm(item), 100);
         };
 
         window.closeModal = () => {
@@ -280,13 +282,6 @@
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
                 showNotify("REGISTRO ELIMINADO", true);
             } catch (e) { showNotify("ERROR AL ELIMINAR"); }
-        };
-
-        window.deleteUser = async (id) => {
-            try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authorized_users', id));
-                showNotify("USUARIO ELIMINADO", true);
-            } catch (e) { showNotify("ERROR"); }
         };
 
         const render = () => {
@@ -309,7 +304,7 @@
                         <div>
                             <h2 class="text-2xl font-black italic uppercase tracking-tighter">
                                 ${window.state.view === 'dashboard' ? 'INICIO' : 
-                                  window.state.view === 'entrada' ? (window.state.editingItem ? 'EDITAR' : 'ENTRADA') : 
+                                  window.state.view === 'entrada' ? 'REGISTRO' : 
                                   window.state.view === 'buscar' ? 'BÚSQUEDA' : 'MAESTRO'}
                             </h2>
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">HOLA, ${window.state.user.name}</p>
@@ -369,7 +364,7 @@
                     </div>
 
                     <div class="pt-2">
-                        <p class="section-title">Datos de Ficha</p>
+                        <p class="section-title">Ficha Técnica (Se copia de la anterior)</p>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Tamaño</label><input name="size" class="input-box uppercase"></div>
                             <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase">Galga</label><input name="gauge" class="input-box uppercase"></div>
@@ -380,15 +375,14 @@
                     </div>
                     
                     <div class="pt-2">
-                        <p class="section-title">Datos de Registro</p>
+                        <p class="section-title text-green-600 font-black">Datos de este registro (RELLENAR)</p>
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">Nº Lote</label><input name="batch" class="input-box uppercase border-green-100" required></div>
-                            <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic">Peso</label><input name="weight" type="number" step="0.01" class="input-box border-green-100" required></div>
-                            <div class="col-span-2 space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-2 uppercase italic text-green-600">Calle</label><input name="location" class="input-box uppercase text-green-600 border-green-200" required></div>
+                            <div class="space-y-1"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase italic">Nº Lote</label><input name="batch" class="input-box uppercase border-green-200" required></div>
+                            <div class="space-y-1"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase italic">Peso</label><input name="weight" type="number" step="0.01" class="input-box border-green-200" required></div>
+                            <div class="col-span-2 space-y-1"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase italic text-green-600">Calle / Ubicación</label><input name="location" class="input-box uppercase text-green-700 border-green-400 font-black" required></div>
                         </div>
                     </div>
-                    <button type="submit" class="btn-main mt-4">${window.state.editingItem ? 'Actualizar Registro' : 'Confirmar Registro'}</button>
-                    ${window.state.editingItem ? `<button type="button" onclick="window.state.editingItem=null; render()" class="w-full text-[9px] font-black text-slate-400 uppercase py-2">Cancelar Edición</button>` : ''}
+                    <button type="submit" class="btn-main mt-4">Guardar Registro</button>
                 </form>`;
             }
             if (window.state.view === 'buscar') {
@@ -413,7 +407,7 @@
                                     <div class="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center font-black text-green-600 text-xs border border-slate-100">${i.location}</div>
                                     <div>
                                         <p class="font-black text-slate-800 text-xs uppercase">${i.material} ${i.size}</p>
-                                        <p class="text-[9px] text-slate-400 font-bold uppercase italic">LOTE: ${i.batch} • ${i.weight}</p>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase italic">LOTE: ${i.batch} • ${i.weight}kg</p>
                                     </div>
                                 </div>
                                 <i data-lucide="chevron-right" class="text-slate-200"></i>
@@ -473,6 +467,13 @@
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'authorized_users'), { name });
             document.getElementById('newUserName').value = '';
             showNotify("REGISTRADO", true);
+        };
+        
+        window.deleteUser = async (id) => {
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authorized_users', id));
+                showNotify("USUARIO ELIMINADO", true);
+            } catch (e) { showNotify("ERROR"); }
         };
     </script>
 </body>
